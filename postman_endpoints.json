@@ -1,0 +1,383 @@
+{
+  "apiInfo": {
+    "name": "Pro Speed Logistics API",
+    "baseUrl": "http://localhost:5000/api",
+    "totalEndpoints": 21,
+    "description": "Complete API endpoints with test data for Postman"
+  },
+  "authentication": {
+    "login": {
+      "method": "POST",
+      "url": "http://localhost:5000/api/auth/login",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "email": "admin@prospeed.com",
+        "password": "admin123"
+      }
+    },
+    "register": {
+      "method": "POST",
+      "url": "http://localhost:5000/api/auth/register",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "Test User",
+        "email": "testuser@example.com",
+        "password": "test1234",
+        "phone": "+966501234000",
+        "role": "client",
+        "address": {
+          "street": "123 Test Street",
+          "city": "Riyadh",
+          "country": "Saudi Arabia"
+        }
+      }
+    }
+  },
+  "endpoints": [
+    {
+      "name": "Get Current User",
+      "method": "GET",
+      "url": "http://localhost:5000/api/auth/me",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      }
+    },
+    {
+      "name": "Get All Users (Admin)",
+      "method": "GET",
+      "url": "http://localhost:5000/api/users",
+      "headers": {
+        "Authorization": "Bearer ADMIN_TOKEN_HERE"
+      },
+      "queryParams": {
+        "page": "1",
+        "limit": "10",
+        "role": "employee"
+      }
+    },
+    {
+      "name": "Create User (Admin)",
+      "method": "POST",
+      "url": "http://localhost:5000/api/users",
+      "headers": {
+        "Authorization": "Bearer ADMIN_TOKEN_HERE",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "New Employee",
+        "email": "newemployee@prospeed.com",
+        "password": "employee123",
+        "role": "employee",
+        "phone": "+966507654321",
+        "address": {
+          "street": "456 Employee Ave",
+          "city": "Jeddah",
+          "country": "Saudi Arabia"
+        }
+      }
+    },
+    {
+      "name": "Update User (Admin)",
+      "method": "PUT",
+      "url": "http://localhost:5000/api/users/USER_ID_HERE",
+      "headers": {
+        "Authorization": "Bearer ADMIN_TOKEN_HERE",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "Updated Employee Name",
+        "phone": "+966507654322"
+      }
+    },
+    {
+      "name": "Get All Customers",
+      "method": "GET",
+      "url": "http://localhost:5000/api/customers",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      },
+      "queryParams": {
+        "page": "1",
+        "limit": "10",
+        "search": "Ahmed"
+      }
+    },
+    {
+      "name": "Get Single Customer",
+      "method": "GET",
+      "url": "http://localhost:5000/api/customers/CUSTOMER_ID_HERE",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      }
+    },
+    {
+      "name": "Create Customer",
+      "method": "POST",
+      "url": "http://localhost:5000/api/customers",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "Ahmed Al-Rashid",
+        "email": "ahmed@example.com",
+        "phone": "+966501111111",
+        "company": {
+          "name": "Al-Rashid Trading",
+          "taxId": "123456789",
+          "industry": "Import/Export"
+        },
+        "address": {
+          "street": "123 Business District",
+          "city": "Riyadh",
+          "country": "Saudi Arabia"
+        },
+        "customerType": "business",
+        "creditLimit": 50000,
+        "status": "active"
+      }
+    },
+    {
+      "name": "Update Customer",
+      "method": "PUT",
+      "url": "http://localhost:5000/api/customers/CUSTOMER_ID_HERE",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "Ahmed Al-Rashid Updated",
+        "phone": "+966501111222",
+        "creditLimit": 75000
+      }
+    },
+    {
+      "name": "Delete Customer (Admin)",
+      "method": "DELETE",
+      "url": "http://localhost:5000/api/customers/CUSTOMER_ID_HERE",
+      "headers": {
+        "Authorization": "Bearer ADMIN_TOKEN_HERE"
+      }
+    },
+    {
+      "name": "Get All Orders",
+      "method": "GET",
+      "url": "http://localhost:5000/api/orders",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      },
+      "queryParams": {
+        "page": "1",
+        "limit": "10",
+        "status": "confirmed"
+      }
+    },
+    {
+      "name": "Get Single Order",
+      "method": "GET",
+      "url": "http://localhost:5000/api/orders/ORDER_ID_HERE",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      }
+    },
+    {
+      "name": "Create Order",
+      "method": "POST",
+      "url": "http://localhost:5000/api/orders",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "customer": "CUSTOMER_ID_HERE",
+        "serviceType": "land_transport",
+        "status": "pending",
+        "priority": "high",
+        "origin": {
+          "address": "Riyadh Industrial City",
+          "city": "Riyadh",
+          "country": "Saudi Arabia",
+          "coordinates": {
+            "lat": 24.7136,
+            "lng": 46.6753
+          }
+        },
+        "destination": {
+          "address": "Jeddah Port",
+          "city": "Jeddah",
+          "country": "Saudi Arabia",
+          "coordinates": {
+            "lat": 21.3891,
+            "lng": 39.8579
+          }
+        },
+        "cargo": {
+          "description": "Electronic Equipment",
+          "weight": 1500,
+          "dimensions": {
+            "length": 200,
+            "width": 150,
+            "height": 100
+          },
+          "value": 25000,
+          "quantity": 10,
+          "packageType": "box"
+        },
+        "pricing": {
+          "basePrice": 2500,
+          "additionalCharges": [
+            {
+              "description": "Insurance",
+              "amount": 250
+            }
+          ],
+          "discount": 0,
+          "tax": 390,
+          "totalAmount": 3290
+        }
+      }
+    },
+    {
+      "name": "Update Order",
+      "method": "PUT",
+      "url": "http://localhost:5000/api/orders/ORDER_ID_HERE",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "status": "confirmed",
+        "priority": "urgent",
+        "notes": "Updated with higher priority"
+      }
+    },
+    {
+      "name": "Update Order Status",
+      "method": "PUT",
+      "url": "http://localhost:5000/api/orders/ORDER_ID_HERE/status",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "status": "in_transit",
+        "notes": "Package picked up and in transit"
+      }
+    },
+    {
+      "name": "Delete Order (Admin)",
+      "method": "DELETE",
+      "url": "http://localhost:5000/api/orders/ORDER_ID_HERE",
+      "headers": {
+        "Authorization": "Bearer ADMIN_TOKEN_HERE"
+      }
+    },
+    {
+      "name": "Get All Vehicles",
+      "method": "GET",
+      "url": "http://localhost:5000/api/vehicles",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      }
+    },
+    {
+      "name": "Create Vehicle",
+      "method": "POST",
+      "url": "http://localhost:5000/api/vehicles",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "plateNumber": "ABC-1234",
+        "type": "truck",
+        "model": {
+          "brand": "Mercedes",
+          "model": "Actros",
+          "year": 2022
+        },
+        "capacity": {
+          "weight": 25000,
+          "volume": 100
+        },
+        "driver": {
+          "name": "Mohammed Al-Fahd",
+          "phone": "+966503333333",
+          "licenseNumber": "DL123456",
+          "licenseExpiry": "2025-12-31"
+        },
+        "status": "available",
+        "currentLocation": {
+          "address": "Riyadh Logistics Hub",
+          "coordinates": {
+            "lat": 24.7136,
+            "lng": 46.6753
+          }
+        }
+      }
+    },
+    {
+      "name": "Get All Shipments",
+      "method": "GET",
+      "url": "http://localhost:5000/api/shipments",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      }
+    },
+    {
+      "name": "Get All Invoices",
+      "method": "GET",
+      "url": "http://localhost:5000/api/invoices",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      }
+    },
+    {
+      "name": "Get Reports (Admin/Employee)",
+      "method": "GET",
+      "url": "http://localhost:5000/api/reports",
+      "headers": {
+        "Authorization": "Bearer ADMIN_TOKEN_HERE"
+      }
+    },
+    {
+      "name": "Get Notifications",
+      "method": "GET",
+      "url": "http://localhost:5000/api/notifications",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      }
+    },
+    {
+      "name": "Health Check",
+      "method": "GET",
+      "url": "http://localhost:5000/api/health"
+    }
+  ],
+  "sampleCredentials": {
+    "admin": {
+      "email": "admin@prospeed.com",
+      "password": "admin123"
+    },
+    "employee": {
+      "email": "employee@prospeed.com",
+      "password": "employee123"
+    },
+    "client": {
+      "email": "client@example.com",
+      "password": "client123"
+    }
+  },
+  "testingInstructions": {
+    "step1": "Login with admin credentials to get JWT token",
+    "step2": "Use the token in Authorization header: Bearer YOUR_TOKEN",
+    "step3": "Create customer first to get customerId",
+    "step4": "Create vehicle to get vehicleId",
+    "step5": "Create order using customerId and vehicleId",
+    "step6": "Test other endpoints with real IDs from responses"
+  }
+} 

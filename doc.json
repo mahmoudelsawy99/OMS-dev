@@ -1,0 +1,36 @@
+{
+    "auth": {
+      "context": "AuthProvider (components/auth-provider.tsx)",
+      "userType": "User (id, name, email, entity, role, permissions, entityId)",
+      "login": {
+        "description": "Sends POST request to /api/auth/login, stores user and token in localStorage, sets user context.",
+        "endpoint": "http://localhost:5001/api/auth/login",
+        "success": "Stores user and token, redirects to dashboard.",
+        "failure": "Shows error toast."
+      },
+      "logout": {
+        "description": "Clears user and token from localStorage, resets user context, redirects to /login."
+      },
+      "permissions": "Permissions are determined by role using getRolePermissions(role). hasPermission checks if user.permissions includes a given permission.",
+      "roles": [
+        "GENERAL_MANAGER", "CLEARANCE_MANAGER", "OPERATIONS_MANAGER", "TRANSLATOR", "CUSTOMS_BROKER", "DRIVER", "ACCOUNTANT", "DATA_ENTRY",
+        "CLIENT_MANAGER", "CLIENT_SUPERVISOR", "CLIENT_DATA_ENTRY",
+        "SUPPLIER_MANAGER", "SUPPLIER_SUPERVISOR", "SUPPLIER_DATA_ENTRY"
+      ],
+      "permissionsList": [
+        "VIEW_ALL_ORDERS", "CREATE_ORDER", "EDIT_ORDER", "DELETE_ORDER", "APPROVE_ORDER", "REJECT_ORDER", "VIEW_CLIENTS", "CREATE_CLIENT", "EDIT_CLIENT", "DELETE_CLIENT", "VIEW_SUPPLIERS", "CREATE_SUPPLIER", "EDIT_SUPPLIER", "DELETE_SUPPLIER", "VIEW_USERS", "CREATE_USER", "EDIT_USER", "DELETE_USER", "VIEW_INVOICES", "CREATE_INVOICE", "EDIT_INVOICE", "DELETE_INVOICE", "VIEW_REPORTS", "TRANSLATE_DOCUMENTS", "DRIVE_VEHICLES", "MANAGE_PAYMENTS", "ENTER_DATA", "VIEW_OWN_ORDERS", "EDIT_OWN_ORDERS"
+      ]
+    },
+    "loginPage": {
+      "file": "app/login/page.tsx",
+      "flow": "User enters email/phone and password, submits form. Calls login from useAuth. Shows toast on success/failure. Redirects to dashboard on success.",
+      "validation": "Checks for required fields before submitting."
+    },
+    "apiUsage": {
+      "login": "POST /api/auth/login",
+      "register": "POST /api/auth/register (not shown in code, but expected)",
+      "me": "GET /api/auth/me (for getting current user info)"
+    },
+    "notes": "Frontend uses context for authentication and permissions. All API calls are made to the backend endpoints. User and token are stored in localStorage. Permissions are mapped by role in getRolePermissions."
+  }
+  

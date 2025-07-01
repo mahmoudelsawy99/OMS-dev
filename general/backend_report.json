@@ -1,0 +1,134 @@
+{
+  "models": {
+    "User": {
+      "fields": [
+        "name (String, required, max 50)",
+        "email (String, required, unique, email format)",
+        "password (String, required, min 6, hashed)",
+        "role (String, enum: admin, employee, client, supplier, default: client)",
+        "phone (String, required)",
+        "address (Object: street, city, state, zipCode, country)",
+        "avatar (String, optional)",
+        "isActive (Boolean, default: true)",
+        "lastLogin (Date)",
+        "permissions (Array<String>, enum: read, write, delete, admin)",
+        "createdBy (User reference)"
+      ],
+      "validation": "Email format, password min length, unique email, required fields. Password is hashed before save.",
+      "methods": ["comparePassword(candidatePassword)", "toJSON()"]
+    },
+    "Order": {
+      "fields": [
+        "orderNumber (String, unique, required)",
+        "customer (Customer reference, required)",
+        "serviceType (String, enum: air_freight, sea_freight, land_transport, express_delivery, warehousing)",
+        "status (String, enum: pending, confirmed, in_transit, delivered, cancelled, on_hold)",
+        "priority (String, enum: low, medium, high, urgent)",
+        "origin/destination (Object: address, city, country, coordinates, contactPerson)",
+        "cargo (Object: description, weight, dimensions, value, quantity, packageType, specialInstructions, hazardous)",
+        "pricing (Object: basePrice, additionalCharges, discount, tax, totalAmount)",
+        "timeline (Object: estimatedPickup, actualPickup, estimatedDelivery, actualDelivery, transitTime)",
+        "documents (Array: name, type, url, uploadedAt, uploadedBy)",
+        "insurance (Object: required, provider, policyNumber, coverage, premium)",
+        "customsInfo (Object: declarationNumber, hsCode, dutyAmount, clearanceStatus)",
+        "assignedTo (User reference)",
+        "vehicle (Vehicle reference)",
+        "tracking (Object: trackingNumber, currentLocation, updates)",
+        "notes, internalNotes, createdBy (User reference)"
+      ],
+      "validation": "Required fields, enums, numeric checks, auto-generates orderNumber, indexes for search."
+    },
+    "Customer": {
+      "fields": [
+        "name (String, required)",
+        "email (String, required, unique)",
+        "phone (String, required)",
+        "company (Object: name, taxId, industry)",
+        "address (Object: street, city, state, zipCode, country)",
+        "billingAddress (Object)",
+        "contactPerson (Object)",
+        "customerType (String, enum: individual, business)",
+        "creditLimit (Number)",
+        "currentBalance (Number)",
+        "paymentTerms (String, enum: cash, net15, net30, net60)",
+        "status (String, enum: active, inactive, suspended)",
+        "notes, tags, createdBy (User reference)"
+      ],
+      "validation": "Required fields, unique email, enums, text index for search."
+    },
+    "Vehicle": {
+      "fields": [
+        "plateNumber (String, required, unique, uppercase)",
+        "type (String, enum: truck, van, motorcycle, ship, plane)",
+        "model (Object: brand, model, year)",
+        "capacity (Object: weight, volume)",
+        "driver (Object: name, phone, licenseNumber, licenseExpiry)",
+        "status (String, enum: available, in_transit, maintenance, out_of_service)",
+        "currentLocation (Object: address, coordinates, lastUpdated)",
+        "maintenance (Object: lastService, nextService, mileage)",
+        "insurance (Object: provider, policyNumber, expiryDate)",
+        "documents (Array: type, url, expiryDate)",
+        "isActive (Boolean)"
+      ],
+      "validation": "Required fields, enums, unique plateNumber."
+    },
+    "Shipment": {
+      "fields": [
+        "shipmentNumber (String, unique, required)",
+        "order (Order reference, required)",
+        "vehicle (Vehicle reference, required)",
+        "route (Array: location, estimatedTime, actualTime, status)",
+        "currentStatus (String, enum: preparing, picked_up, in_transit, out_for_delivery, delivered, exception)",
+        "realTimeTracking (Object: currentLocation, speed, direction, batteryLevel, signal)",
+        "statistics (Object: totalDistance, distanceTraveled, averageSpeed, maxSpeed, fuelConsumption, estimatedArrival)",
+        "events (Array: type, description, location, timestamp, recordedBy)",
+        "proof (Object: delivery, pickup)"
+      ],
+      "validation": "Required fields, enums, auto-generates shipmentNumber."
+    }
+  },
+  "roles": [
+    "admin", "employee", "client", "supplier",
+    "GENERAL_MANAGER", "CLEARANCE_MANAGER", "OPERATIONS_MANAGER", "TRANSLATOR", "CUSTOMS_BROKER", "DRIVER", "ACCOUNTANT", "DATA_ENTRY",
+    "CLIENT_MANAGER", "CLIENT_SUPERVISOR", "CLIENT_DATA_ENTRY",
+    "SUPPLIER_MANAGER", "SUPPLIER_SUPERVISOR", "SUPPLIER_DATA_ENTRY"
+  ],
+  "permissions": [
+    "VIEW_ALL_ORDERS", "CREATE_ORDER", "EDIT_ORDER", "DELETE_ORDER", "APPROVE_ORDER", "REJECT_ORDER", "VIEW_CLIENTS", "CREATE_CLIENT", "EDIT_CLIENT", "DELETE_CLIENT", "VIEW_SUPPLIERS", "CREATE_SUPPLIER", "EDIT_SUPPLIER", "DELETE_SUPPLIER", "VIEW_USERS", "CREATE_USER", "EDIT_USER", "DELETE_USER", "VIEW_INVOICES", "CREATE_INVOICE", "EDIT_INVOICE", "DELETE_INVOICE", "VIEW_REPORTS", "TRANSLATE_DOCUMENTS", "DRIVE_VEHICLES", "MANAGE_PAYMENTS", "ENTER_DATA", "VIEW_OWN_ORDERS", "EDIT_OWN_ORDERS"
+  ],
+  "endpoints": {
+    "auth": [
+      { "POST /api/auth/register": "Register a new user. Public." },
+      { "POST /api/auth/login": "Login user. Public." },
+      { "GET /api/auth/me": "Get current user. Private." }
+    ],
+    "users": [
+      { "GET /api/users": "Get all users. Private (Admin only)." },
+      { "POST /api/users": "Create new user. Private (Admin only)." },
+      { "PUT /api/users/:id": "Update user. Private (Admin only)." }
+    ],
+    "orders": [
+      { "GET /api/orders": "Get all orders. Private." },
+      { "GET /api/orders/:id": "Get single order. Private." },
+      { "POST /api/orders": "Create new order. Private." },
+      { "PUT /api/orders/:id": "Update order. Private (Admin/Employee)." },
+      { "DELETE /api/orders/:id": "Delete order. Private (Admin only)." },
+      { "PUT /api/orders/:id/status": "Update order status. Private (Admin/Employee)." }
+    ],
+    "customers": [
+      { "GET /api/customers": "Get all customers. Private (Admin/Employee)." },
+      { "GET /api/customers/:id": "Get single customer. Private." },
+      { "POST /api/customers": "Create new customer. Private (Admin/Employee)." },
+      { "PUT /api/customers/:id": "Update customer. Private (Admin/Employee)." },
+      { "DELETE /api/customers/:id": "Delete customer. Private (Admin only)." }
+    ]
+  },
+  "validation": {
+    "User": "Email format, password min length, unique email, required fields.",
+    "Order": "Required fields, enums, numeric checks, auto-generates orderNumber.",
+    "Customer": "Required fields, unique email, enums, text index for search.",
+    "Vehicle": "Required fields, enums, unique plateNumber.",
+    "Shipment": "Required fields, enums, auto-generates shipmentNumber."
+  },
+  "notes": "Roles and permissions are enforced in the backend using middleware (auth, authorize). Validation is handled using express-validator and Mongoose schema validation."
+} 
