@@ -33,7 +33,7 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 
 // Helper functions
-const getDayName = (day) => {
+const getDayName = (day: string) => {
   switch (day) {
     case "sunday":
       return "الأحد"
@@ -54,7 +54,7 @@ const getDayName = (day) => {
   }
 }
 
-const getServiceIcon = (service) => {
+const getServiceIcon = (service: string) => {
   switch (service) {
     case "import":
       return <FileText className="h-5 w-5" />
@@ -75,7 +75,7 @@ const getServiceIcon = (service) => {
   }
 }
 
-const getServiceName = (service) => {
+const getServiceName = (service: string) => {
   switch (service) {
     case "import":
       return "تخليص وارد"
@@ -96,7 +96,7 @@ const getServiceName = (service) => {
   }
 }
 
-const getServiceDescription = (service) => {
+const getServiceDescription = (service: string) => {
   switch (service) {
     case "import":
       return "تخليص البضائع المستوردة"
@@ -117,7 +117,7 @@ const getServiceDescription = (service) => {
   }
 }
 
-const getShippingTypeName = (type) => {
+const getShippingTypeName = (type: string) => {
   switch (type) {
     case "sea":
       return "بحري"
@@ -130,7 +130,7 @@ const getShippingTypeName = (type) => {
   }
 }
 
-const getNotificationChannelName = (channel) => {
+const getNotificationChannelName = (channel: string) => {
   switch (channel) {
     case "email":
       return "البريد الإلكتروني"
@@ -145,7 +145,7 @@ const getNotificationChannelName = (channel) => {
   }
 }
 
-const getNotificationChannelDescription = (channel) => {
+const getNotificationChannelDescription = (channel: string) => {
   switch (channel) {
     case "email":
       return "تلقي الإشعارات عبر البريد الإلكتروني"
@@ -160,7 +160,7 @@ const getNotificationChannelDescription = (channel) => {
   }
 }
 
-const getNotificationEventName = (event) => {
+const getNotificationEventName = (event: string) => {
   switch (event) {
     case "orderCreated":
       return "إنشاء طلب جديد"
@@ -181,7 +181,7 @@ const getNotificationEventName = (event) => {
   }
 }
 
-const getNotificationEventDescription = (event) => {
+const getNotificationEventDescription = (event: string) => {
   switch (event) {
     case "orderCreated":
       return "إشعار عند إنشاء طلب جديد"
@@ -202,7 +202,7 @@ const getNotificationEventDescription = (event) => {
   }
 }
 
-const getFieldTypeName = (type) => {
+const getFieldTypeName = (type: string) => {
   switch (type) {
     case "text":
       return "نص"
@@ -628,7 +628,10 @@ export default function SettingsPage() {
       })
       
       // Check if user is admin
-      setIsAdmin(user.role === "GENERAL_MANAGER" || user.permissions.includes("VIEW_ALL_ORDERS"))
+      setIsAdmin(
+        user.role === "GENERAL_MANAGER" ||
+        (Array.isArray(user.permissions) && user.permissions.includes("VIEW_ALL_ORDERS"))
+      )
     }
   }, [user])
   

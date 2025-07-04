@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // دالة تسجيل الدخول
   const login = async (email: string, password: string) => {
     try {
-      const res = await fetch("http://localhost:5001/api/auth/login", {
+      const res = await fetch("http://31.97.156.49:5001/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -124,8 +124,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
 
       if (res.ok && data.token) {
-        setUser(data.user);
-        localStorage.setItem("currentUser", JSON.stringify(data.user));
+        // Always assign permissions based on role
+        const userWithPermissions = {
+          ...data.user,
+          permissions: getRolePermissions(data.user.role),
+        };
+        setUser(userWithPermissions);
+        localStorage.setItem("currentUser", JSON.stringify(userWithPermissions));
         localStorage.setItem("token", data.token);
         return { success: true };
       } else {
@@ -202,35 +207,42 @@ function determineEntityFromRole(role: RoleType): EntityType {
 
 // دالة لتحديد الصلاحيات بناءً على الدور
 function getRolePermissions(role: RoleType): Permission[] {
+  // Always return all permissions for GENERAL_MANAGER (admin)
+  if (role === "GENERAL_MANAGER") {
+    return [
+      "VIEW_ALL_ORDERS",
+      "CREATE_ORDER",
+      "EDIT_ORDER",
+      "DELETE_ORDER",
+      "APPROVE_ORDER",
+      "REJECT_ORDER",
+      "VIEW_CLIENTS",
+      "CREATE_CLIENT",
+      "EDIT_CLIENT",
+      "DELETE_CLIENT",
+      "VIEW_SUPPLIERS",
+      "CREATE_SUPPLIER",
+      "EDIT_SUPPLIER",
+      "DELETE_SUPPLIER",
+      "VIEW_USERS",
+      "CREATE_USER",
+      "EDIT_USER",
+      "DELETE_USER",
+      "VIEW_INVOICES",
+      "CREATE_INVOICE",
+      "EDIT_INVOICE",
+      "DELETE_INVOICE",
+      "VIEW_REPORTS",
+      "TRANSLATE_DOCUMENTS",
+      "DRIVE_VEHICLES",
+      "MANAGE_PAYMENTS",
+      "ENTER_DATA",
+      "VIEW_OWN_ORDERS",
+      "EDIT_OWN_ORDERS"
+    ];
+  }
   switch (role) {
     // أدوار شركتك
-    case "GENERAL_MANAGER":
-      return [
-        "VIEW_ALL_ORDERS",
-        "CREATE_ORDER",
-        "EDIT_ORDER",
-        "DELETE_ORDER",
-        "APPROVE_ORDER",
-        "REJECT_ORDER",
-        "VIEW_CLIENTS",
-        "CREATE_CLIENT",
-        "EDIT_CLIENT",
-        "DELETE_CLIENT",
-        "VIEW_SUPPLIERS",
-        "CREATE_SUPPLIER",
-        "EDIT_SUPPLIER",
-        "DELETE_SUPPLIER",
-        "VIEW_USERS",
-        "CREATE_USER",
-        "EDIT_USER",
-        "DELETE_USER",
-        "VIEW_INVOICES",
-        "CREATE_INVOICE",
-        "EDIT_INVOICE",
-        "DELETE_INVOICE",
-        "VIEW_REPORTS",
-        "MANAGE_PAYMENTS",
-      ]
     case "CLEARANCE_MANAGER":
       return [
         "VIEW_ALL_ORDERS",

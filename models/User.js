@@ -24,8 +24,23 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "employee", "client", "supplier"],
-      default: "client",
+      enum: [
+        "GENERAL_MANAGER",
+        "CLEARANCE_MANAGER",
+        "OPERATIONS_MANAGER",
+        "TRANSLATOR",
+        "CUSTOMS_BROKER",
+        "DRIVER",
+        "ACCOUNTANT",
+        "DATA_ENTRY",
+        "CLIENT_MANAGER",
+        "CLIENT_SUPERVISOR",
+        "CLIENT_DATA_ENTRY",
+        "SUPPLIER_MANAGER",
+        "SUPPLIER_SUPERVISOR",
+        "SUPPLIER_DATA_ENTRY"
+      ],
+      default: "CLIENT_MANAGER",
     },
     phone: {
       type: String,

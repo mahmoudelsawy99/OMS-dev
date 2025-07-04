@@ -29,7 +29,13 @@ const auth = async (req, res, next) => {
 
 const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    // Map legacy roles to new ones for compatibility
+    const effectiveRoles = roles.flatMap(role => {
+      if (role === 'admin') return ['admin', 'GENERAL_MANAGER'];
+      if (role === 'employee') return ['employee', 'CLEARANCE_MANAGER', 'OPERATIONS_MANAGER', 'TRANSLATOR', 'CUSTOMS_BROKER', 'DRIVER', 'ACCOUNTANT', 'DATA_ENTRY'];
+      return [role];
+    });
+    if (!effectiveRoles.includes(req.user.role)) {
       return res.status(403).json({
         message: `User role ${req.user.role} is not authorized to access this route`,
       })

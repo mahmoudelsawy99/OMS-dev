@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 // Configuration
-const BASE_URL = 'http://localhost:5001/api';
+const BASE_URL = 'http://31.97.156.49:5001/api';
 let authToken = '';
 let adminToken = '';
 let customerId = '';
@@ -159,7 +159,7 @@ async function testRegister() {
     email: `testuser${timestamp}@example.com`,
     password: 'test1234',
     phone: '+966501234000',
-    role: 'client',
+    role: 'CLIENT_MANAGER',
     address: {
       street: '123 Test Street',
       city: 'Riyadh',
