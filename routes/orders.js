@@ -142,7 +142,7 @@ router.post(
 // @route   PUT /api/orders/:id
 // @desc    Update order
 // @access  Private
-router.put("/:id", [auth, authorize("admin", "employee")], async (req, res) => {
+router.put("/:id", [auth, authorize("GENERAL_MANAGER", "admin", "employee")], async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
 
@@ -172,7 +172,7 @@ router.put("/:id", [auth, authorize("admin", "employee")], async (req, res) => {
 // @route   DELETE /api/orders/:id
 // @desc    Delete order
 // @access  Private (Admin only)
-router.delete("/:id", [auth, authorize("admin")], async (req, res) => {
+router.delete("/:id", [auth, authorize("GENERAL_MANAGER", "admin",)], async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
 
@@ -191,7 +191,7 @@ router.delete("/:id", [auth, authorize("admin")], async (req, res) => {
 // @route   PUT /api/orders/:id/status
 // @desc    Update order status
 // @access  Private
-router.put("/:id/status", [auth, authorize("admin", "employee")], async (req, res) => {
+router.put("/:id/status", [auth, authorize("GENERAL_MANAGER", "admin", "employee")], async (req, res) => {
   try {
     const { status, notes } = req.body
 

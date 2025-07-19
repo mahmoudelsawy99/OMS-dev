@@ -8,7 +8,7 @@ const router = express.Router()
 // @route   GET /api/customers
 // @desc    Get all customers
 // @access  Private (Admin/Employee only)
-router.get("/", [auth, authorize("admin", "employee")], async (req, res) => {
+router.get("/", [auth, authorize("GENERAL_MANAGER", "admin", "employee")], async (req, res) => {
   try {
     const page = Number.parseInt(req.query.page) || 1
     const limit = Number.parseInt(req.query.limit) || 10
@@ -80,7 +80,7 @@ router.post(
   "/",
   [
     auth,
-    authorize("admin", "employee"),
+    authorize("GENERAL_MANAGER", "admin", "employee"),
     body("name").trim().isLength({ min: 2 }).withMessage("Name must be at least 2 characters"),
     body("email").isEmail().withMessage("Please enter a valid email"),
     body("phone").isMobilePhone().withMessage("Please enter a valid phone number"),
@@ -119,7 +119,7 @@ router.post(
 // @route   PUT /api/customers/:id
 // @desc    Update customer
 // @access  Private (Admin/Employee only)
-router.put("/:id", [auth, authorize("admin", "employee")], async (req, res) => {
+router.put("/:id", [auth, authorize("GENERAL_MANAGER", "admin", "employee")], async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id)
 
@@ -142,7 +142,7 @@ router.put("/:id", [auth, authorize("admin", "employee")], async (req, res) => {
 // @route   DELETE /api/customers/:id
 // @desc    Delete customer
 // @access  Private (Admin only)
-router.delete("/:id", [auth, authorize("admin")], async (req, res) => {
+router.delete("/:id", [auth, authorize("GENERAL_MANAGER", "admin")], async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id)
 

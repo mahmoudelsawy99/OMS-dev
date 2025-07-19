@@ -38,7 +38,8 @@ const userSchema = new mongoose.Schema(
         "CLIENT_DATA_ENTRY",
         "SUPPLIER_MANAGER",
         "SUPPLIER_SUPERVISOR",
-        "SUPPLIER_DATA_ENTRY"
+        "SUPPLIER_DATA_ENTRY",
+        "ADMIN"
       ],
       default: "CLIENT_MANAGER",
     },

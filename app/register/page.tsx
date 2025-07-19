@@ -1,20 +1,24 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Eye, EyeOff, Lock, Mail, Phone, User } from "lucide-react"
-import { toast } from "@/hooks/use-toast"
-import Link from "next/link"
 import { Checkbox } from "@/components/ui/checkbox"
+import { toast } from "@/components/ui/use-toast"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { User, Mail, Phone, Lock, Eye, EyeOff, Loader2 } from "lucide-react"
+import { authAPI, customersAPI } from "@/lib/api"
 
 export default function RegisterPage() {
   const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [accountType, setAccountType] = useState("individual")
+  const [agreeTerms, setAgreeTerms] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -22,9 +26,6 @@ export default function RegisterPage() {
     password: "",
     confirmPassword: "",
   })
-  const [showPassword, setShowPassword] = useState(false)
-  const [agreeTerms, setAgreeTerms] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -33,64 +34,63 @@ export default function RegisterPage() {
 
   const handleRegister = async (e) => {
     e.preventDefault()
-
-    if (formData.password !== formData.confirmPassword) {
-      toast({
-        title: "كلمات المرور غير متطابقة",
-        description: "يرجى التأكد من تطابق كلمات المرور",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!agreeTerms) {
-      toast({
-        title: "يجب الموافقة على الشروط",
-        description: "يرجى الموافقة على شروط الاستخدام وسياسة الخصوصية للمتابعة",
-        variant: "destructive",
-      })
-      return
-    }
-
     setIsLoading(true)
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Validate passwords match
+      if (formData.password !== formData.confirmPassword) {
+        toast({
+          title: "كلمات المرور غير متطابقة",
+          description: "يرجى التأكد من تطابق كلمة المرور وتأكيدها",
+          variant: "destructive",
+        })
+        return
+      }
 
-      // Generate a unique ID for the new customer
-      const newId =
-        "C" +
-        Math.floor(Math.random() * 10000)
-          .toString()
-          .padStart(4, "0")
+      // Validate terms agreement
+      if (!agreeTerms) {
+        toast({
+          title: "يجب الموافقة على الشروط",
+          description: "يرجى الموافقة على شروط الاستخدام وسياسة الخصوصية",
+          variant: "destructive",
+        })
+        return
+      }
 
-      // Create new customer object
-      const newCustomer = {
-        id: newId,
+      // Create customer data
+      const customerData = {
         name: formData.name,
         type: accountType,
         phone: formData.phone,
         email: formData.email,
-        createdAt: new Date().toISOString(),
+        address: "", // Will be updated in profile
+        idNumber: "", // Will be updated in profile
+        ...(accountType === "company" && {
+          contactPerson: formData.name,
+          taxNumber: "",
+        }),
       }
 
-      // Create new user object
-      const newUser = {
-        id: newId,
+      // Create user data
+      const userData = {
         name: formData.name,
         email: formData.email,
-        role: "client",
-        status: "active",
-        createdAt: new Date().toISOString(),
+        password: formData.password,
+        entity: "CLIENT",
+        role: "CLIENT_MANAGER",
       }
 
-      // Store in localStorage (in a real app, this would be sent to a backend)
-      const existingCustomers = JSON.parse(localStorage.getItem("customers") || "[]")
-      localStorage.setItem("customers", JSON.stringify([...existingCustomers, newCustomer]))
+      // Step 1: Create customer
+      const customerResult = await customersAPI.create(customerData)
+      if (!customerResult.success) {
+        throw new Error(customerResult.error || "فشل في إنشاء العميل")
+      }
 
-      const existingUsers = JSON.parse(localStorage.getItem("users") || "[]")
-      localStorage.setItem("users", JSON.stringify([...existingUsers, newUser]))
+      // Step 2: Create user account
+      const userResult = await authAPI.register(userData)
+      if (!userResult.success) {
+        throw new Error(userResult.error || "فشل في إنشاء الحساب")
+      }
 
       toast({
         title: "تم إنشاء الحساب بنجاح",
@@ -99,9 +99,10 @@ export default function RegisterPage() {
 
       router.push("/login")
     } catch (error) {
+      console.error("Registration error:", error)
       toast({
         title: "خطأ في إنشاء الحساب",
-        description: "حدث خطأ أثناء محاولة إنشاء الحساب",
+        description: error.message || "حدث خطأ أثناء محاولة إنشاء الحساب",
         variant: "destructive",
       })
     } finally {
@@ -258,7 +259,14 @@ export default function RegisterPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "جاري إنشاء الحساب..." : "إنشاء حساب"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                    جاري إنشاء الحساب...
+                  </>
+                ) : (
+                  "إنشاء حساب"
+                )}
               </Button>
             </form>
           </CardContent>

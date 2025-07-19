@@ -1,30 +1,40 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Package, Truck, Upload, Search, ChevronRight, CheckCircle } from "lucide-react"
-import { toast } from "@/hooks/use-toast"
+import { toast } from "@/components/ui/use-toast"
+import { useRouter } from "next/navigation"
+import {
+  User,
+  Package,
+  FileText,
+  Upload,
+  CheckCircle,
+  ArrowRight,
+  ArrowLeft,
+  Loader2,
+  Search,
+} from "lucide-react"
+import { customersAPI, ordersAPI } from "@/lib/api"
 
 export default function CreateOrderPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("client")
-  const [selectedClient, setSelectedClient] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [orderComplete, setOrderComplete] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [selectedClient, setSelectedClient] = useState(null)
   const [selectedServices, setSelectedServices] = useState([])
   const [documents, setDocuments] = useState([])
   const [shippingType, setShippingType] = useState("")
   const [transportType, setTransportType] = useState("")
-  const [transportVehicle, setTransportVehicle] = useState("")
   const [transportTemperature, setTransportTemperature] = useState("")
   const [departureCity, setDepartureCity] = useState("")
   const [departureDistrict, setDepartureDistrict] = useState("")
@@ -36,22 +46,44 @@ export default function CreateOrderPage() {
     email: "",
     address: "",
   })
-  const [orderComplete, setOrderComplete] = useState(false)
   const [customers, setCustomers] = useState([])
+  const [loadingCustomers, setLoadingCustomers] = useState(true)
 
-  // Load customers from localStorage
+  // Load customers from API
   useEffect(() => {
-    const storedCustomers = localStorage.getItem("customers")
-    if (storedCustomers) {
-      setCustomers(JSON.parse(storedCustomers))
+    const fetchCustomers = async () => {
+      setLoadingCustomers(true)
+      try {
+        const result = await customersAPI.getAll()
+        if (result.success) {
+          setCustomers(result.data.data || result.data || [])
+        } else {
+          toast({
+            title: "خطأ في تحميل العملاء",
+            description: result.error,
+            variant: "destructive",
+          })
+        }
+      } catch (error) {
+        console.error("Failed to fetch customers:", error)
+        toast({
+          title: "خطأ في الاتصال",
+          description: "فشل في الاتصال بالخادم",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingCustomers(false)
+      }
     }
+
+    fetchCustomers()
   }, [])
 
   // Filter clients based on search term
   const filteredCustomers = customers.filter(
     (customer) =>
       customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (customer.phone && customer.phone.includes(searchTerm)),
   )
 
@@ -85,53 +117,96 @@ export default function CreateOrderPage() {
     }
   }
 
-  // تعديل نموذج الطلب لإضافة حقل رقم البوليصة
+  // Previous step handler
+  const handlePreviousStep = () => {
+    const tabOrder = ["client", "services", "documents", "review"]
+    const currentIndex = tabOrder.indexOf(activeTab)
+    if (currentIndex > 0) {
+      setActiveTab(tabOrder[currentIndex - 1])
+    }
+  }
+
   // Submit order handler
-  const handleSubmitOrder = () => {
-    // Generate a random order ID
-    const orderId =
-      "OP" +
-      Math.floor(Math.random() * 100000)
-        .toString()
-        .padStart(5, "0")
-
-    // Generate a random policy number
-    const policyNumber =
-      "POL-" +
-      Math.floor(Math.random() * 100000)
-        .toString()
-        .padStart(5, "0")
-
-    // Create order object
-    const newOrder = {
-      id: orderId,
-      clientId: selectedClient.id,
-      clientName: selectedClient.name,
-      services: selectedServices,
-      status: "قيد المراجعة",
-      creationDate: new Date().toLocaleDateString("ar-SA"),
-      documents: documents,
-      shippingType,
-      transportType,
-      transportTemperature,
-      departureCity,
-      departureDistrict,
-      arrivalCity,
-      arrivalDistrict,
-      factoryContact,
-      policyNumber,
+  const handleSubmitOrder = async () => {
+    if (!selectedClient) {
+      toast({
+        title: "خطأ في البيانات",
+        description: "يرجى اختيار العميل",
+        variant: "destructive",
+      })
+      return
     }
 
-    // In a real app, you would save this to your database
-    // For now, we'll simulate by storing in localStorage
-    const existingOrders = JSON.parse(localStorage.getItem("orders") || "[]")
-    localStorage.setItem("orders", JSON.stringify([...existingOrders, newOrder]))
+    if (selectedServices.length === 0) {
+      toast({
+        title: "خطأ في البيانات",
+        description: "يرجى اختيار خدمة واحدة على الأقل",
+        variant: "destructive",
+      })
+      return
+    }
 
-    setOrderComplete(true)
-    toast({
-      title: "تم إنشاء الطلب بنجاح",
-      description: `رقم الطلب: ${orderId}`,
-    })
+    setIsLoading(true)
+
+    try {
+      // Create order object with proper API format
+      const orderData = {
+        customer: selectedClient._id || selectedClient.id,
+        clientName: selectedClient.name,
+        services: selectedServices,
+        status: "قيد المراجعة",
+        documents: documents,
+        shippingType,
+        transportType,
+        transportTemperature,
+        departureCity,
+        departureDistrict,
+        arrivalCity,
+        arrivalDistrict,
+        factoryContact,
+        // Add required fields for API
+        serviceType: selectedServices[0], // Use first service as primary
+        origin: {
+          address: `${departureCity}, ${departureDistrict}`,
+          city: departureCity,
+          district: departureDistrict,
+        },
+        destination: {
+          address: `${arrivalCity}, ${arrivalDistrict}`,
+          city: arrivalCity,
+          district: arrivalDistrict,
+        },
+        cargo: {
+          description: "شحنة عامة",
+          weight: 1000, // Default weight
+          type: "general",
+        },
+        pricing: {
+          basePrice: 1000, // Default price
+          currency: "SAR",
+        },
+      }
+
+      const result = await ordersAPI.create(orderData)
+      if (result.success) {
+        setOrderComplete(true)
+        toast({
+          title: "تم إنشاء الطلب بنجاح",
+          description: `رقم الطلب: ${result.data._id || result.data.id}`,
+        })
+      } else {
+        throw new Error(result.error || "فشل في إنشاء الطلب")
+      }
+    } catch (error) {
+      console.error("Failed to create order:", error)
+      toast({
+        title: "خطأ في إنشاء الطلب",
+        description: error.message || "حدث خطأ أثناء إنشاء الطلب",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   // Redirect to orders page
@@ -248,17 +323,16 @@ export default function CreateOrderPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">فواتير الشحنة</CardTitle>
+              <CardTitle className="text-lg">شهادة المنشأ</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="border-2 border-dashed rounded-md p-6 text-center">
                 <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mb-2">اسحب وأفلت الملفات هنا أو</p>
+                <p className="text-sm text-muted-foreground mb-2">اسحب وأفلت الملف هنا أو</p>
                 <Input
                   type="file"
-                  multiple
                   className="mx-auto max-w-xs"
-                  onChange={(e) => handleFileUpload("import_invoices", e.target.files)}
+                  onChange={(e) => handleFileUpload("certificate_of_origin", e.target.files)}
                 />
               </div>
             </CardContent>
@@ -270,7 +344,7 @@ export default function CreateOrderPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">بوليصة الشحن</CardTitle>
+              <CardTitle className="text-lg">شهادة المنشأ</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="border-2 border-dashed rounded-md p-6 text-center">
@@ -279,7 +353,7 @@ export default function CreateOrderPage() {
                 <Input
                   type="file"
                   className="mx-auto max-w-xs"
-                  onChange={(e) => handleFileUpload("bill_of_lading", e.target.files)}
+                  onChange={(e) => handleFileUpload("certificate_of_origin", e.target.files)}
                 />
               </div>
             </CardContent>
@@ -287,17 +361,16 @@ export default function CreateOrderPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">فواتير الشحنة</CardTitle>
+              <CardTitle className="text-lg">فاتورة تجارية</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="border-2 border-dashed rounded-md p-6 text-center">
                 <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mb-2">اسحب وأفلت الملفات هنا أو</p>
+                <p className="text-sm text-muted-foreground mb-2">اسحب وأفلت الملف هنا أو</p>
                 <Input
                   type="file"
-                  multiple
                   className="mx-auto max-w-xs"
-                  onChange={(e) => handleFileUpload("export_invoices", e.target.files)}
+                  onChange={(e) => handleFileUpload("commercial_invoice", e.target.files)}
                 />
               </div>
             </CardContent>
@@ -307,412 +380,337 @@ export default function CreateOrderPage() {
     } else if (selectedServices.includes("transport")) {
       return (
         <div className="space-y-6">
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">نوع النقل</h3>
-            <RadioGroup value={transportType} onValueChange={setTransportType} className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="dina" id="dina" />
-                <Label htmlFor="dina" className="mr-2">
-                  دينة
-                </Label>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">معلومات النقل</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="departure_city">مدينة المغادرة</Label>
+                  <Input
+                    id="departure_city"
+                    value={departureCity}
+                    onChange={(e) => setDepartureCity(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="departure_district">حي المغادرة</Label>
+                  <Input
+                    id="departure_district"
+                    value={departureDistrict}
+                    onChange={(e) => setDepartureDistrict(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="arrival_city">مدينة الوصول</Label>
+                  <Input
+                    id="arrival_city"
+                    value={arrivalCity}
+                    onChange={(e) => setArrivalCity(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="arrival_district">حي الوصول</Label>
+                  <Input
+                    id="arrival_district"
+                    value={arrivalDistrict}
+                    onChange={(e) => setArrivalDistrict(e.target.value)}
+                  />
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="trailer" id="trailer" />
-                <Label htmlFor="trailer" className="mr-2">
-                  تريلا
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
 
-          {transportType && (
-            <>
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">نوع التبريد</h3>
-                <RadioGroup value={transportTemperature} onValueChange={setTransportTemperature} className="space-y-3">
+              <div>
+                <Label htmlFor="transport_type">نوع النقل</Label>
+                <RadioGroup value={transportType} onValueChange={setTransportType} className="space-y-3">
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="refrigerated" id="refrigerated" />
                     <Label htmlFor="refrigerated" className="mr-2">
-                      مبرد
+                      نقل مبرد
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="dry" id="dry" />
                     <Label htmlFor="dry" className="mr-2">
-                      جاف
+                      نقل جاف
                     </Label>
                   </div>
                 </RadioGroup>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">معلومات المغادرة</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="departure_city">المدينة</Label>
-                    <Select value={departureCity} onValueChange={setDepartureCity}>
-                      <SelectTrigger id="departure_city">
-                        <SelectValue placeholder="اختر المدينة" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="riyadh">الرياض</SelectItem>
-                        <SelectItem value="jeddah">جدة</SelectItem>
-                        <SelectItem value="dammam">الدمام</SelectItem>
-                        <SelectItem value="makkah">مكة المكرمة</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="departure_district">الحي</Label>
-                    <Input
-                      id="departure_district"
-                      value={departureDistrict}
-                      onChange={(e) => setDepartureDistrict(e.target.value)}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">معلومات الوصول</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="arrival_city">المدينة</Label>
-                    <Select value={arrivalCity} onValueChange={setArrivalCity}>
-                      <SelectTrigger id="arrival_city">
-                        <SelectValue placeholder="اختر المدينة" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="riyadh">الرياض</SelectItem>
-                        <SelectItem value="jeddah">جدة</SelectItem>
-                        <SelectItem value="dammam">الدمام</SelectItem>
-                        <SelectItem value="makkah">مكة المكرمة</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="arrival_district">الحي</Label>
-                    <Input
-                      id="arrival_district"
-                      value={arrivalDistrict}
-                      onChange={(e) => setArrivalDistrict(e.target.value)}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          )}
-        </div>
-      )
-    } else {
-      return (
-        <div className="text-center p-8">
-          <p className="text-muted-foreground">يرجى اختيار الخدمات المطلوبة أولاً</p>
+              {transportType === "refrigerated" && (
+                <div>
+                  <Label htmlFor="temperature">درجة الحرارة المطلوبة</Label>
+                  <Input
+                    id="temperature"
+                    type="number"
+                    placeholder="مثال: -18"
+                    value={transportTemperature}
+                    onChange={(e) => setTransportTemperature(e.target.value)}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )
     }
+
+    return (
+      <div className="text-center py-8">
+        <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+        <p className="text-muted-foreground">اختر الخدمات المطلوبة لعرض المستندات المطلوبة</p>
+      </div>
+    )
   }
 
-  // Check if documents are ready based on selected services
+  // Check if documents are ready
   const areDocumentsReady = () => {
-    if (selectedServices.includes("shipping")) {
-      return shippingType && factoryContact.name && documents.some((d) => d.documentType === "shipping_attachments")
-    } else if (selectedServices.includes("import") || selectedServices.includes("export")) {
-      return (
-        documents.some((d) => d.documentType === "bill_of_lading") &&
-        (documents.some((d) => d.documentType === "import_invoices") ||
-          documents.some((d) => d.documentType === "export_invoices"))
-      )
-    } else if (selectedServices.includes("transport")) {
-      return transportType && transportTemperature && departureCity && arrivalCity
-    }
-    return false
+    if (selectedServices.includes("shipping") && !shippingType) return false
+    if (selectedServices.includes("transport") && (!departureCity || !arrivalCity)) return false
+    return true
+  }
+
+  if (orderComplete) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="max-w-md mx-auto text-center">
+          <div className="mb-6">
+            <CheckCircle className="h-16 w-16 mx-auto text-green-500 mb-4" />
+            <h1 className="text-2xl font-bold mb-2">تم إنشاء الطلب بنجاح</h1>
+            <p className="text-muted-foreground">سيتم مراجعة طلبك والرد عليك قريباً</p>
+          </div>
+          <Button onClick={goToOrdersPage} className="w-full">
+            عرض جميع الطلبات
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">إنشاء طلب جديد</h1>
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">إنشاء طلب جديد</h1>
+          <Button variant="outline" onClick={() => router.back()}>
+            العودة
+          </Button>
+        </div>
 
-      {/* Main Content */}
-      <Card className="h-full">
-        <CardContent className="h-full pt-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full">
-            <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-muted rounded-lg">
-              <TabsTrigger value="client" className="data-[state=active]:bg-background rounded-md py-2 px-3 text-sm">
-                العميل
-              </TabsTrigger>
-              <TabsTrigger value="services" className="data-[state=active]:bg-background rounded-md py-2 px-3 text-sm">
-                الخدمات
-              </TabsTrigger>
-              <TabsTrigger value="documents" className="data-[state=active]:bg-background rounded-md py-2 px-3 text-sm">
-                المستندات
-              </TabsTrigger>
-              <TabsTrigger value="review" className="data-[state=active]:bg-background rounded-md py-2 px-3 text-sm">
-                المراجعة
-              </TabsTrigger>
-            </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="client">العميل</TabsTrigger>
+            <TabsTrigger value="services" disabled={!selectedClient}>
+              الخدمات
+            </TabsTrigger>
+            <TabsTrigger value="documents" disabled={selectedServices.length === 0}>
+              المستندات
+            </TabsTrigger>
+            <TabsTrigger value="review" disabled={!areDocumentsReady()}>
+              المراجعة
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Client Selection Tab */}
-            <TabsContent value="client" className="mt-6 space-y-6">
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold">اختيار العميل</h2>
+          <TabsContent value="client" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>اختيار العميل</CardTitle>
+                <CardDescription>ابحث عن العميل أو اختر من القائمة</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="relative">
                   <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="البحث باسم العميل أو رقم العميل أو رقم الجوال"
-                    className="pr-10"
+                    placeholder="البحث عن العميل..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pr-10"
                   />
                 </div>
-                <div className="border rounded-md">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-right">اسم العميل</TableHead>
-                        <TableHead className="text-right">نوع العميل</TableHead>
-                        <TableHead className="text-right">رقم الجوال</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCustomers.length > 0 ? (
-                        filteredCustomers.map((customer) => (
-                          <TableRow key={customer.id} className={selectedClient?.id === customer.id ? "bg-muted" : ""}>
-                            <TableCell>{customer.name}</TableCell>
-                            <TableCell>{customer.type === "individual" ? "فرد" : "شركة"}</TableCell>
-                            <TableCell>{customer.phone}</TableCell>
-                            <TableCell>
-                              <Button
-                                variant={selectedClient?.id === customer.id ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => setSelectedClient(customer)}
-                              >
-                                {selectedClient?.id === customer.id ? "تم الاختيار" : "اختيار"}
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center py-4">
-                            لا يوجد عملاء مطابقين لبحثك
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-                <div className="flex justify-between">
-                  <Button variant="outline" onClick={() => router.push("/customers/add")}>
-                    إضافة عميل جديد
-                  </Button>
-                  <Button onClick={handleNextStep} disabled={!selectedClient}>
-                    التالي
-                    <ChevronRight className="mr-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </TabsContent>
 
-            {/* Services Selection Tab */}
-            <TabsContent value="services" className="mt-6 space-y-6">
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold">اختيار الخدمات</h2>
-                <p className="text-muted-foreground">يمكنك اختيار خدمة واحدة أو أكثر</p>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card
-                    className={`cursor-pointer border-2 ${selectedServices.includes("import") ? "border-primary" : "border-border"}`}
-                    onClick={() => toggleService("import")}
-                  >
-                    <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                      <Package className="h-12 w-12 mb-4 text-primary" />
-                      <h3 className="font-medium text-lg">تخليص وارد</h3>
-                      <p className="text-sm text-muted-foreground mt-2">تخليص البضائع الواردة من خارج المملكة</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card
-                    className={`cursor-pointer border-2 ${selectedServices.includes("export") ? "border-primary" : "border-border"}`}
-                    onClick={() => toggleService("export")}
-                  >
-                    <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                      <Package className="h-12 w-12 mb-4 text-primary" />
-                      <h3 className="font-medium text-lg">تخليص صادر</h3>
-                      <p className="text-sm text-muted-foreground mt-2">تخليص البضائع المصدرة خارج المملكة</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card
-                    className={`cursor-pointer border-2 ${selectedServices.includes("shipping") ? "border-primary" : "border-border"}`}
-                    onClick={() => toggleService("shipping")}
-                  >
-                    <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                      <Package className="h-12 w-12 mb-4 text-primary" />
-                      <h3 className="font-medium text-lg">شحن</h3>
-                      <p className="text-sm text-muted-foreground mt-2">خدمات الشحن البري والبحري والجوي</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card
-                    className={`cursor-pointer border-2 ${selectedServices.includes("transport") ? "border-primary" : "border-border"}`}
-                    onClick={() => toggleService("transport")}
-                  >
-                    <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                      <Truck className="h-12 w-12 mb-4 text-primary" />
-                      <h3 className="font-medium text-lg">نقل</h3>
-                      <p className="text-sm text-muted-foreground mt-2">خدمات النقل داخل المملكة</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card
-                    className={`cursor-pointer border-2 ${selectedServices.includes("storage") ? "border-primary" : "border-border"}`}
-                    onClick={() => toggleService("storage")}
-                  >
-                    <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                      <Package className="h-12 w-12 mb-4 text-primary" />
-                      <h3 className="font-medium text-lg">تخزين</h3>
-                      <p className="text-sm text-muted-foreground mt-2">خدمات التخزين في مستودعاتنا</p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <div className="flex justify-end">
-                  <Button onClick={handleNextStep} disabled={selectedServices.length === 0}>
-                    التالي
-                    <ChevronRight className="mr-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Documents Upload Tab */}
-            <TabsContent value="documents" className="mt-6 space-y-6">
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold">المستندات المطلوبة</h2>
-                <p className="text-muted-foreground">يرجى رفع المستندات المطلوبة حسب نوع الخدمة المختارة</p>
-
-                {getRequiredDocuments()}
-
-                <div className="flex justify-end">
-                  <Button onClick={handleNextStep} disabled={!areDocumentsReady()}>
-                    التالي
-                    <ChevronRight className="mr-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Review Tab */}
-            <TabsContent value="review" className="mt-6 space-y-6">
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold">مراجعة الطلب</h2>
-
-                {!orderComplete ? (
-                  <>
-                    {/* إضافة رقم البوليصة في صفحة المراجعة */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">ملخص الطلب</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">العميل:</span>
-                          <span className="font-medium">{selectedClient?.name}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">رقم البوليصة:</span>
-                          <span className="font-medium">سيتم إنشاؤه تلقائياً</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">الخدمات:</span>
-                          <div className="flex flex-wrap gap-1 justify-end">
-                            {selectedServices.map((service) => (
-                              <Badge key={service} variant="outline">
-                                {service === "import"
-                                  ? "تخليص وارد"
-                                  : service === "export"
-                                    ? "تخليص صادر"
-                                    : service === "shipping"
-                                      ? "شحن"
-                                      : service === "transport"
-                                        ? "نقل"
-                                        : service === "storage"
-                                          ? "تخزين"
-                                          : service}
-                              </Badge>
-                            ))}
+                {loadingCustomers ? (
+                  <div className="flex justify-center items-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="grid gap-3">
+                    {filteredCustomers.map((customer) => (
+                      <div
+                        key={customer._id || customer.id}
+                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                          selectedClient?._id === customer._id || selectedClient?.id === customer.id
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                        onClick={() => setSelectedClient(customer)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-medium">{customer.name}</h3>
+                            <p className="text-sm text-muted-foreground">{customer.email}</p>
+                            <p className="text-sm text-muted-foreground">{customer.phone}</p>
                           </div>
+                          <Badge variant={customer.type === "company" ? "default" : "secondary"}>
+                            {customer.type === "company" ? "شركة" : "فرد"}
+                          </Badge>
                         </div>
-                        {selectedServices.includes("shipping") && shippingType && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">نوع الشحن:</span>
-                            <span className="font-medium">
-                              {shippingType === "fob" ? "FOB (تسليم ظهر السفينة)" : "Door to Door (من الباب إلى الباب)"}
-                            </span>
-                          </div>
-                        )}
-                        {selectedServices.includes("transport") && transportType && (
-                          <>
-                            <div className="flex justify-between items-center">
-                              <span className="text-muted-foreground">نوع النقل:</span>
-                              <span className="font-medium">{transportType === "dina" ? "دينة" : "تريلا"}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-muted-foreground">نوع التبريد:</span>
-                              <span className="font-medium">
-                                {transportTemperature === "refrigerated" ? "مبرد" : "جاف"}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-muted-foreground">المغادرة:</span>
-                              <span className="font-medium">
-                                {departureCity} - {departureDistrict}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-muted-foreground">الوصول:</span>
-                              <span className="font-medium">
-                                {arrivalCity} - {arrivalDistrict}
-                              </span>
-                            </div>
-                          </>
-                        )}
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">عدد المستندات المرفقة:</span>
-                          <span className="font-medium">{documents.length}</span>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-                    <div className="flex justify-end">
-                      <Button onClick={handleSubmitOrder}>إرسال الطلب</Button>
+            {selectedClient && (
+              <div className="flex justify-end">
+                <Button onClick={handleNextStep}>
+                  التالي
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="services" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>اختيار الخدمات</CardTitle>
+                <CardDescription>اختر الخدمات المطلوبة</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4">
+                  {[
+                    { id: "shipping", name: "شحن", description: "خدمات الشحن البحري والجوي" },
+                    { id: "import", name: "تخليص وارد", description: "تخليص البضائع الواردة" },
+                    { id: "export", name: "تخليص صادر", description: "تخليص البضائع المصدرة" },
+                    { id: "transport", name: "نقل", description: "خدمات النقل المحلي" },
+                  ].map((service) => (
+                    <div
+                      key={service.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                        selectedServices.includes(service.id)
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:border-gray-300"
+                      }`}
+                      onClick={() => toggleService(service.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium">{service.name}</h3>
+                          <p className="text-sm text-muted-foreground">{service.description}</p>
+                        </div>
+                        {selectedServices.includes(service.id) && (
+                          <CheckCircle className="h-5 w-5 text-blue-500" />
+                        )}
+                      </div>
                     </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={handlePreviousStep}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                السابق
+              </Button>
+              <Button onClick={handleNextStep} disabled={selectedServices.length === 0}>
+                التالي
+                <ArrowRight className="h-4 w-4 mr-2" />
+              </Button>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="documents" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>المستندات المطلوبة</CardTitle>
+                <CardDescription>قم برفع المستندات المطلوبة للخدمات المختارة</CardDescription>
+              </CardHeader>
+              <CardContent>{getRequiredDocuments()}</CardContent>
+            </Card>
+
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={handlePreviousStep}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                السابق
+              </Button>
+              <Button onClick={handleNextStep} disabled={!areDocumentsReady()}>
+                التالي
+                <ArrowRight className="h-4 w-4 mr-2" />
+              </Button>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="review" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>مراجعة الطلب</CardTitle>
+                <CardDescription>راجع تفاصيل الطلب قبل الإرسال</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h3 className="font-medium mb-2">معلومات العميل</h3>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p><strong>الاسم:</strong> {selectedClient?.name}</p>
+                    <p><strong>البريد الإلكتروني:</strong> {selectedClient?.email}</p>
+                    <p><strong>الهاتف:</strong> {selectedClient?.phone}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-2">الخدمات المختارة</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedServices.map((service) => (
+                      <Badge key={service} variant="secondary">
+                        {service === "shipping" && "شحن"}
+                        {service === "import" && "تخليص وارد"}
+                        {service === "export" && "تخليص صادر"}
+                        {service === "transport" && "نقل"}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-2">المستندات المرفقة</h3>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    {documents.length > 0 ? (
+                      <ul className="space-y-1">
+                        {documents.map((doc) => (
+                          <li key={doc.id} className="text-sm">
+                            📎 {doc.name}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-muted-foreground">لا توجد مستندات مرفقة</p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={handlePreviousStep}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                السابق
+              </Button>
+              <Button onClick={handleSubmitOrder} disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    جاري إنشاء الطلب...
                   </>
                 ) : (
-                  <>
-                    <Card className="border-2 border-green-500">
-                      <CardContent className="p-6 text-center">
-                        <CheckCircle className="h-16 w-16 mx-auto mb-4 text-green-500" />
-                        <h3 className="text-xl font-bold mb-2">تم إرسال طلبك بنجاح</h3>
-                        <p className="text-muted-foreground mb-4">
-                          سيقوم فريقنا بمراجعة طلبك والرد عليك في أقرب وقت ممكن
-                        </p>
-                        <Button onClick={goToOrdersPage}>الذهاب إلى صفحة الطلبات</Button>
-                      </CardContent>
-                    </Card>
-                  </>
+                  "إنشاء الطلب"
                 )}
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   )
 }

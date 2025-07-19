@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, FileText, MoreHorizontal, ChevronsUpDown, Search, Filter, Download } from "lucide-react"
+import { Plus, FileText, MoreHorizontal, ChevronsUpDown, Search, Filter, Download, RefreshCw } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -27,10 +27,14 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
+import { ordersAPI } from "@/lib/api"
+import { toast } from "@/hooks/use-toast"
 
 export default function ClientOrdersPage() {
   const router = useRouter()
   const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
   const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -39,108 +43,76 @@ export default function ClientOrdersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
+  // Load orders from API
   useEffect(() => {
-    // Mock data for client orders
-    const mockOrders = [
-      {
-        id: "OP00012",
-        services: ["shipping"],
-        status: "قيد التنفيذ",
-        creationDate: "٢٥/٠٣/١٤٤٥",
-        totalAmount: "1,500 ريال",
-        trackingNumber: "TRK123456",
-      },
-      {
-        id: "OP00011",
-        services: ["import"],
-        status: "مكتمل",
-        creationDate: "٢٤/٠٣/١٤٤٥",
-        totalAmount: "3,200 ريال",
-        trackingNumber: "TRK123455",
-      },
-      {
-        id: "OP00010",
-        services: ["transport"],
-        status: "مكتمل",
-        creationDate: "٢٣/٠٣/١٤٤٥",
-        totalAmount: "800 ريال",
-        trackingNumber: "TRK123454",
-      },
-      {
-        id: "OP00009",
-        services: ["export"],
-        status: "مرفوض",
-        creationDate: "٢٢/٠٣/١٤٤٥",
-        totalAmount: "2,100 ريال",
-        trackingNumber: "TRK123453",
-      },
-      {
-        id: "OP00008",
-        services: ["import", "transport"],
-        status: "بانتظار مستندات إضافية",
-        creationDate: "٢١/٠٣/١٤٤٥",
-        totalAmount: "4,500 ريال",
-        trackingNumber: "TRK123452",
-      },
-      {
-        id: "OP00007",
-        services: ["shipping"],
-        status: "قيد المراجعة",
-        creationDate: "٢٠/٠٣/١٤٤٥",
-        totalAmount: "1,800 ريال",
-        trackingNumber: "TRK123451",
-      },
-      {
-        id: "OP00006",
-        services: ["transport"],
-        status: "مكتمل",
-        creationDate: "١٩/٠٣/١٤٤٥",
-        totalAmount: "950 ريال",
-        trackingNumber: "TRK123450",
-      },
-      {
-        id: "OP00005",
-        services: ["import"],
-        status: "مكتمل",
-        creationDate: "١٨/٠٣/١٤٤٥",
-        totalAmount: "2,700 ريال",
-        trackingNumber: "TRK123449",
-      },
-      {
-        id: "OP00004",
-        services: ["export"],
-        status: "مكتمل",
-        creationDate: "١٧/٠٣/١٤٤٥",
-        totalAmount: "1,950 ريال",
-        trackingNumber: "TRK123448",
-      },
-      {
-        id: "OP00003",
-        services: ["shipping", "transport"],
-        status: "مكتمل",
-        creationDate: "١٦/٠٣/١٤٤٥",
-        totalAmount: "3,100 ريال",
-        trackingNumber: "TRK123447",
-      },
-      {
-        id: "OP00002",
-        services: ["import"],
-        status: "مكتمل",
-        creationDate: "١٥/٠٣/١٤٤٥",
-        totalAmount: "2,300 ريال",
-        trackingNumber: "TRK123446",
-      },
-      {
-        id: "OP00001",
-        services: ["transport"],
-        status: "مكتمل",
-        creationDate: "١٤/٠٣/١٤٤٥",
-        totalAmount: "750 ريال",
-        trackingNumber: "TRK123445",
-      },
-    ]
+    const fetchOrders = async () => {
+      setLoading(true)
+      setError(null)
+      
+      try {
+        // Try to load from API first
+        const result = await ordersAPI.getAll()
+        
+        if (result.success) {
+          // Transform API data to match frontend format
+          const transformedOrders = result.data.map(order => ({
+            id: order._id || order.id,
+            services: order.services || [],
+            status: order.status || "قيد المراجعة",
+            creationDate: order.createdAt 
+              ? new Date(order.createdAt).toLocaleDateString('ar-SA')
+              : "غير محدد",
+            totalAmount: order.totalAmount || "غير محدد",
+            trackingNumber: order.trackingNumber || `TRK${order._id?.slice(-6) || '000000'}`,
+            clientName: order.clientName || order.client?.name || "غير محدد",
+          }))
+          
+          setOrders(transformedOrders)
+        } else {
+          console.error('Failed to load orders:', result.error)
+          
+          // Fallback to localStorage
+          const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
+          const transformedStoredOrders = storedOrders.map(order => ({
+            id: order.id,
+            services: order.services || [],
+            status: order.status || "قيد المراجعة",
+            creationDate: order.creationDate || "غير محدد",
+            totalAmount: order.totalAmount || "غير محدد",
+            trackingNumber: order.trackingNumber || `TRK${order.id?.slice(-6) || '000000'}`,
+            clientName: order.clientName || "غير محدد",
+          }))
+          
+          setOrders(transformedStoredOrders)
+        }
+      } catch (error) {
+        console.error("Error fetching orders:", error)
+        setError("فشل في تحميل الطلبات")
+        
+        // Fallback to localStorage
+        try {
+          const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
+          const transformedStoredOrders = storedOrders.map(order => ({
+            id: order.id,
+            services: order.services || [],
+            status: order.status || "قيد المراجعة",
+            creationDate: order.creationDate || "غير محدد",
+            totalAmount: order.totalAmount || "غير محدد",
+            trackingNumber: order.trackingNumber || `TRK${order.id?.slice(-6) || '000000'}`,
+            clientName: order.clientName || "غير محدد",
+          }))
+          
+          setOrders(transformedStoredOrders)
+        } catch (localStorageError) {
+          console.error("Error loading from localStorage:", localStorageError)
+          setError("فشل في تحميل الطلبات من التخزين المحلي")
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
 
-    setOrders(mockOrders)
+    fetchOrders()
   }, [])
 
   const handleSort = (column: string) => {
@@ -184,7 +156,8 @@ export default function ClientOrdersPage() {
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
       order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase())
+      order.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.clientName.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = filterStatus === "all" || order.status === filterStatus
     const matchesService = filterService === "all" || order.services.includes(filterService)
 
@@ -225,14 +198,76 @@ export default function ClientOrdersPage() {
     setCurrentPage(page)
   }
 
+  const handleRefresh = async () => {
+    setLoading(true)
+    try {
+      const result = await ordersAPI.getAll()
+      if (result.success) {
+        const transformedOrders = result.data.map(order => ({
+          id: order._id || order.id,
+          services: order.services || [],
+          status: order.status || "قيد المراجعة",
+          creationDate: order.createdAt 
+            ? new Date(order.createdAt).toLocaleDateString('ar-SA')
+            : "غير محدد",
+          totalAmount: order.totalAmount || "غير محدد",
+          trackingNumber: order.trackingNumber || `TRK${order._id?.slice(-6) || '000000'}`,
+          clientName: order.clientName || order.client?.name || "غير محدد",
+        }))
+        setOrders(transformedOrders)
+        toast({
+          title: "تم التحديث",
+          description: "تم تحديث قائمة الطلبات بنجاح",
+        })
+      }
+    } catch (error) {
+      console.error("Error refreshing orders:", error)
+      toast({
+        title: "خطأ في التحديث",
+        description: "فشل في تحديث قائمة الطلبات",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading && orders.length === 0) {
+    return (
+      <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-lg">جاري تحميل الطلبات...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && orders.length === 0) {
+    return (
+      <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <p className="text-lg text-red-600">{error}</p>
+          <Button onClick={handleRefresh}>إعادة المحاولة</Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto p-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <h1 className="text-2xl font-bold">طلباتي</h1>
-        <Button onClick={() => router.push("/client/orders/new")}>
-          <Plus className="h-4 w-4 ml-2" />
-          إنشاء طلب جديد
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ml-2 ${loading ? 'animate-spin' : ''}`} />
+            تحديث
+          </Button>
+          <Button onClick={() => router.push("/client/orders/new")}>
+            <Plus className="h-4 w-4 ml-2" />
+            إنشاء طلب جديد
+          </Button>
+        </div>
       </div>
 
       {/* Filters and Search */}
@@ -242,7 +277,7 @@ export default function ClientOrdersPage() {
             <div className="relative flex-1">
               <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="البحث برقم الطلب أو رقم التتبع"
+                placeholder="البحث برقم الطلب أو رقم التتبع أو اسم العميل"
                 className="pr-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -391,7 +426,7 @@ export default function ClientOrdersPage() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8">
-                      لا توجد طلبات متطابقة مع معايير البحث
+                      {loading ? "جاري التحميل..." : "لا توجد طلبات متطابقة مع معايير البحث"}
                     </TableCell>
                   </TableRow>
                 )}

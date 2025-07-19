@@ -8,7 +8,7 @@ const router = express.Router()
 // @route   GET /api/users
 // @desc    Get all users
 // @access  Private (Admin only)
-router.get("/", [auth, authorize("admin")], async (req, res) => {
+router.get("/", [auth, authorize("GENERAL_MANAGER", "admin", "OPERATIONS_MANAGER")], async (req, res) => {
   try {
     const page = Number.parseInt(req.query.page) || 1
     const limit = Number.parseInt(req.query.limit) || 10
@@ -57,7 +57,7 @@ router.post(
   "/",
   [
     auth,
-    authorize("admin"),
+    authorize("GENERAL_MANAGER", "admin", "OPERATIONS_MANAGER"),
     body("name").trim().isLength({ min: 2 }).withMessage("Name must be at least 2 characters"),
     body("email").isEmail().withMessage("Please enter a valid email"),
     body("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
@@ -94,7 +94,7 @@ router.post(
 // @route   PUT /api/users/:id
 // @desc    Update user
 // @access  Private (Admin only)
-router.put("/:id", [auth, authorize("admin")], async (req, res) => {
+router.put("/:id", [auth, authorize("GENERAL_MANAGER", "admin", "OPERATIONS_MANAGER")], async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
 

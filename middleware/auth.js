@@ -27,14 +27,35 @@ const auth = async (req, res, next) => {
   }
 }
 
+// Alias for auth function (for compatibility)
+const authenticateToken = auth
+
 const authorize = (...roles) => {
   return (req, res, next) => {
     // Map legacy roles to new ones for compatibility
     const effectiveRoles = roles.flatMap(role => {
-      if (role === 'admin') return ['admin', 'GENERAL_MANAGER'];
-      if (role === 'employee') return ['employee', 'CLEARANCE_MANAGER', 'OPERATIONS_MANAGER', 'TRANSLATOR', 'CUSTOMS_BROKER', 'DRIVER', 'ACCOUNTANT', 'DATA_ENTRY'];
+      if (role === 'admin') return ['admin', 'GENERAL_MANAGER', 'OPERATIONS_MANAGER'];
+      if (role === 'employee') return [
+        'employee',
+        'GENERAL_MANAGER', // <-- Give GENERAL_MANAGER full access as employee
+        'CLEARANCE_MANAGER',
+        'OPERATIONS_MANAGER',
+        'TRANSLATOR',
+        'CUSTOMS_BROKER',
+        'DRIVER',
+        'ACCOUNTANT',
+        'DATA_ENTRY',
+      ];
       return [role];
     });
+    
+    // Debug logging
+    console.log('Authorization check:');
+    console.log('  User role:', req.user.role);
+    console.log('  Required roles:', roles);
+    console.log('  Effective roles:', effectiveRoles);
+    console.log('  Is authorized:', effectiveRoles.includes(req.user.role));
+    
     if (!effectiveRoles.includes(req.user.role)) {
       return res.status(403).json({
         message: `User role ${req.user.role} is not authorized to access this route`,
@@ -44,4 +65,40 @@ const authorize = (...roles) => {
   }
 }
 
-module.exports = { auth, authorize }
+// New authorizeRole function for array-based role checking
+const authorizeRole = (allowedRoles) => {
+  return (req, res, next) => {
+    // Map legacy roles to new ones for compatibility
+    const effectiveRoles = allowedRoles.flatMap(role => {
+      if (role === 'admin') return ['admin', 'GENERAL_MANAGER', 'OPERATIONS_MANAGER'];
+      if (role === 'employee') return [
+        'employee',
+        'GENERAL_MANAGER',
+        'CLEARANCE_MANAGER',
+        'OPERATIONS_MANAGER',
+        'TRANSLATOR',
+        'CUSTOMS_BROKER',
+        'DRIVER',
+        'ACCOUNTANT',
+        'DATA_ENTRY',
+      ];
+      return [role];
+    });
+    
+    // Debug logging
+    console.log('Authorization check (authorizeRole):');
+    console.log('  User role:', req.user.role);
+    console.log('  Required roles:', allowedRoles);
+    console.log('  Effective roles:', effectiveRoles);
+    console.log('  Is authorized:', effectiveRoles.includes(req.user.role));
+    
+    if (!effectiveRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        message: `User role ${req.user.role} is not authorized to access this route`,
+      })
+    }
+    next()
+  }
+}
+
+module.exports = { auth, authorize, authenticateToken, authorizeRole }

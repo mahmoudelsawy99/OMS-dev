@@ -21,7 +21,7 @@ router.get("/", auth, async (req, res) => {
 // @route   POST /api/vehicles
 // @desc    Create new vehicle
 // @access  Private (Admin/Employee only)
-router.post("/", [auth, authorize("admin", "employee")], async (req, res) => {
+router.post("/", [auth, authorize("GENERAL_MANAGER", "admin", "employee")], async (req, res) => {
   try {
     const vehicle = new Vehicle(req.body)
     await vehicle.save()

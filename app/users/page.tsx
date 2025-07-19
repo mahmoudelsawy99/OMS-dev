@@ -31,6 +31,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth, type EntityType, type RoleType } from "@/components/auth-provider"
 import { ProtectedRoute } from "@/components/protected-route"
 import { RoleGuard } from "@/components/role-guard"
+import { usersAPI, customersAPI } from "@/lib/api"
 
 export default function UsersPage() {
   const { user } = useAuth()
@@ -38,6 +39,9 @@ export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterRole, setFilterRole] = useState("all")
   const [filterEntity, setFilterEntity] = useState("all")
+  const [loading, setLoading] = useState(true)
+  const [clients, setClients] = useState([])
+  const [suppliers, setSuppliers] = useState([])
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
@@ -47,24 +51,67 @@ export default function UsersPage() {
     entityId: "",
   })
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [clients, setClients] = useState([])
-  const [suppliers, setSuppliers] = useState([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Load users and related data
   useEffect(() => {
-    // تحميل المستخدمين
-    const storedUsers = JSON.parse(localStorage.getItem("users") || "[]")
-    setUsers(storedUsers)
+    const loadData = async () => {
+      setLoading(true)
+      try {
+        // Load users from API
+        const usersResult = await usersAPI.getAll()
+        if (usersResult.success) {
+          setUsers(usersResult.data || [])
+        } else {
+          console.error('Failed to load users:', usersResult.error)
+          toast({
+            title: "خطأ في تحميل المستخدمين",
+            description: "فشل في تحميل بيانات المستخدمين",
+            variant: "destructive",
+          })
+          // Fallback to localStorage if API fails
+          const storedUsers = JSON.parse(localStorage.getItem("users") || "[]")
+          setUsers(storedUsers)
+        }
 
-    // تحميل العملاء والموردين للاختيار من بينهم عند إنشاء مستخدم جديد
-    const storedClients = JSON.parse(localStorage.getItem("customers") || "[]")
-    setClients(storedClients)
+        // Load customers for entity selection
+        const customersResult = await customersAPI.getAll()
+        if (customersResult.success) {
+          setClients(customersResult.data || [])
+        } else {
+          // Fallback to localStorage
+          const storedClients = JSON.parse(localStorage.getItem("customers") || "[]")
+          setClients(storedClients)
+        }
 
-    const storedSuppliers = JSON.parse(localStorage.getItem("suppliers") || "[]")
-    setSuppliers(storedSuppliers)
+        // Load suppliers (fallback to localStorage for now)
+        const storedSuppliers = JSON.parse(localStorage.getItem("suppliers") || "[]")
+        setSuppliers(storedSuppliers)
+
+      } catch (error) {
+        console.error('Error loading data:', error)
+        toast({
+          title: "خطأ في الاتصال",
+          description: "فشل في الاتصال بالخادم",
+          variant: "destructive",
+        })
+        // Fallback to localStorage
+        const storedUsers = JSON.parse(localStorage.getItem("users") || "[]")
+        const storedClients = JSON.parse(localStorage.getItem("customers") || "[]")
+        const storedSuppliers = JSON.parse(localStorage.getItem("suppliers") || "[]")
+        setUsers(storedUsers)
+        setClients(storedClients)
+        setSuppliers(storedSuppliers)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
   }, [])
 
-  const handleAddUser = () => {
-    // التحقق من صحة البيانات
+  const handleAddUser = async () => {
+    // Validation
     if (!newUser.name || !newUser.email || !newUser.password || !newUser.role) {
       toast({
         title: "خطأ في البيانات",
@@ -74,7 +121,6 @@ export default function UsersPage() {
       return
     }
 
-    // التحقق من وجود معرف الكيان إذا كان العميل أو المورد
     if ((newUser.entity === "CLIENT" || newUser.entity === "SUPPLIER") && !newUser.entityId) {
       toast({
         title: "خطأ في البيانات",
@@ -84,72 +130,128 @@ export default function UsersPage() {
       return
     }
 
-    // إنشاء معرف فريد للمستخدم الجديد
-    const newId = `U${Math.floor(Math.random() * 10000)
-      .toString()
-      .padStart(4, "0")}`
-
-    // إنشاء كائن المستخدم الجديد
-    const userToAdd = {
-      id: newId,
-      name: newUser.name,
-      email: newUser.email,
-      password: newUser.password,
-      entity: newUser.entity,
-      role: newUser.role,
-      entityId: newUser.entityId || undefined,
-    }
-
-    // إضافة المستخدم إلى قائمة المستخدمين
-    const updatedUsers = [...users, userToAdd]
-    setUsers(updatedUsers)
-    localStorage.setItem("users", JSON.stringify(updatedUsers))
-
-    // إعادة تعيين نموذج إضافة المستخدم
-    setNewUser({
-      name: "",
-      email: "",
-      password: "",
-      entity: "PRO" as EntityType,
-      role: "DATA_ENTRY" as RoleType,
-      entityId: "",
-    })
-    setIsDialogOpen(false)
-
-    toast({
-      title: "تمت الإضافة بنجاح",
-      description: `تم إضافة المستخدم ${newUser.name} بنجاح`,
-    })
-  }
-
-  const handleUpdateUserStatus = (userId, isActive) => {
-    const updatedUsers = users.map((u) => {
-      if (u.id === userId) {
-        return { ...u, isActive }
+    setIsSubmitting(true)
+    try {
+      // Create user via API
+      const userData = {
+        name: newUser.name,
+        email: newUser.email,
+        password: newUser.password,
+        entity: newUser.entity,
+        role: newUser.role,
+        entityId: newUser.entityId || undefined,
       }
-      return u
-    })
-    setUsers(updatedUsers)
-    localStorage.setItem("users", JSON.stringify(updatedUsers))
 
-    toast({
-      title: "تم تحديث الحالة",
-      description: `تم ${isActive ? "تفعيل" : "تعطيل"} المستخدم بنجاح`,
-    })
+      const result = await usersAPI.create(userData)
+      
+      if (result.success) {
+        // Add new user to local state
+        const newUserWithId = {
+          ...result.data,
+          id: result.data._id || result.data.id
+        }
+        setUsers(prev => [...prev, newUserWithId])
+
+        // Reset form
+        setNewUser({
+          name: "",
+          email: "",
+          password: "",
+          entity: "PRO" as EntityType,
+          role: "DATA_ENTRY" as RoleType,
+          entityId: "",
+        })
+        setIsDialogOpen(false)
+
+        toast({
+          title: "تمت الإضافة بنجاح",
+          description: `تم إضافة المستخدم ${newUser.name} بنجاح`,
+        })
+      } else {
+        toast({
+          title: "خطأ في إضافة المستخدم",
+          description: result.error || "فشل في إضافة المستخدم",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error adding user:', error)
+      toast({
+        title: "خطأ في الاتصال",
+        description: "فشل في الاتصال بالخادم",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const handleDeleteUser = (userId) => {
-    const updatedUsers = users.filter((u) => u.id !== userId)
-    setUsers(updatedUsers)
-    localStorage.setItem("users", JSON.stringify(updatedUsers))
+  const handleUpdateUserStatus = async (userId, isActive) => {
+    try {
+      const result = await usersAPI.update(userId, { isActive })
+      
+      if (result.success) {
+        // Update local state
+        const updatedUsers = users.map((u) => {
+          if (u.id === userId || u._id === userId) {
+            return { ...u, isActive }
+          }
+          return u
+        })
+        setUsers(updatedUsers)
 
-    toast({
-      title: "تم الحذف بنجاح",
-      description: "تم حذف المستخدم بنجاح",
-    })
+        toast({
+          title: "تم تحديث الحالة",
+          description: `تم ${isActive ? "تفعيل" : "تعطيل"} المستخدم بنجاح`,
+        })
+      } else {
+        toast({
+          title: "خطأ في تحديث الحالة",
+          description: result.error || "فشل في تحديث حالة المستخدم",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error updating user status:', error)
+      toast({
+        title: "خطأ في الاتصال",
+        description: "فشل في الاتصال بالخادم",
+        variant: "destructive",
+      })
+    }
   }
 
-  // تصفية المستخدمين بناءً على البحث والفلاتر
+  const handleDeleteUser = async (userId) => {
+    try {
+      const result = await usersAPI.delete(userId)
+      
+      if (result.success) {
+        // Remove user from local state
+        const updatedUsers = users.filter((u) => u.id !== userId && u._id !== userId)
+        setUsers(updatedUsers)
+
+        toast({
+          title: "تم الحذف بنجاح",
+          description: "تم حذف المستخدم بنجاح",
+        })
+      } else {
+        toast({
+          title: "خطأ في حذف المستخدم",
+          description: result.error || "فشل في حذف المستخدم",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      toast({
+        title: "خطأ في الاتصال",
+        description: "فشل في الاتصال بالخادم",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Filter users based on search and filters
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -161,7 +263,7 @@ export default function UsersPage() {
     return matchesSearch && matchesRole && matchesEntity
   })
 
-  // تحديث أدوار المستخدم بناءً على نوع الكيان المحدد
+  // Get available roles based on selected entity
   const getAvailableRoles = () => {
     switch (newUser.entity) {
       case "PRO":
@@ -192,7 +294,7 @@ export default function UsersPage() {
     }
   }
 
-  // دالة مساعدة لعرض اسم الدور بشكل مناسب
+  // Helper function to display role name
   const getRoleDisplayName = (role) => {
     const roleNames = {
       GENERAL_MANAGER: "المدير العام",
@@ -203,234 +305,237 @@ export default function UsersPage() {
       DRIVER: "سائق",
       ACCOUNTANT: "محاسب",
       DATA_ENTRY: "مدخل بيانات",
-      CLIENT_MANAGER: "مدير (عميل)",
-      CLIENT_SUPERVISOR: "مشرف (عميل)",
-      CLIENT_DATA_ENTRY: "مدخل بيانات (عميل)",
-      SUPPLIER_MANAGER: "مدير (مورد)",
-      SUPPLIER_SUPERVISOR: "مشرف (مورد)",
-      SUPPLIER_DATA_ENTRY: "مدخل بيانات (مورد)",
+      CLIENT_MANAGER: "مدير",
+      CLIENT_SUPERVISOR: "مشرف",
+      CLIENT_DATA_ENTRY: "مدخل بيانات",
+      SUPPLIER_MANAGER: "مدير",
+      SUPPLIER_SUPERVISOR: "مشرف",
+      SUPPLIER_DATA_ENTRY: "مدخل بيانات",
     }
     return roleNames[role] || role
   }
 
-  // دالة مساعدة لعرض اسم الكيان بشكل مناسب
+  // Helper function to display entity name
   const getEntityDisplayName = (entity) => {
     const entityNames = {
-      PRO: "شركتنا",
+      PRO: "شركة",
       CLIENT: "عميل",
       SUPPLIER: "مورد",
     }
     return entityNames[entity] || entity
   }
 
-  // دالة مساعدة للحصول على الأحرف الأولى من اسم المستخدم
+  // Helper function to get user initials
   const getInitials = (name) => {
     return name
       .split(" ")
-      .map((part) => part[0])
+      .map((n) => n[0])
       .join("")
       .toUpperCase()
-      .substring(0, 2)
+      .slice(0, 2)
+  }
+
+  if (loading) {
+    return (
+      <ProtectedRoute>
+        <RoleGuard allowedRoles={["admin", "GENERAL_MANAGER"]}>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">جاري تحميل المستخدمين...</p>
+            </div>
+          </div>
+        </RoleGuard>
+      </ProtectedRoute>
+    )
   }
 
   return (
     <ProtectedRoute>
-      <RoleGuard permissions={["VIEW_USERS"]}>
-        <div className="container mx-auto p-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-            <h1 className="text-2xl font-bold">إدارة المستخدمين</h1>
-            <RoleGuard permissions={["CREATE_USER"]}>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <UserPlus className="h-4 w-4 ml-2" />
-                    إضافة مستخدم
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>إضافة مستخدم جديد</DialogTitle>
-                    <DialogDescription>
-                      أدخل بيانات المستخدم الجديد. سيتم إرسال بريد إلكتروني للمستخدم بتفاصيل الحساب.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="name" className="text-right col-span-1">
-                        الاسم
-                      </Label>
-                      <Input
-                        id="name"
-                        value={newUser.name}
-                        onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="email" className="text-right col-span-1">
-                        البريد الإلكتروني
-                      </Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={newUser.email}
-                        onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="entity" className="text-right col-span-1">
-                        الكيان
-                      </Label>
-                      <Select
-                        value={newUser.entity}
-                        onValueChange={(value) => {
-                          // عند تغيير الكيان، نعيد تعيين الدور والمعرف
-                          setNewUser({
-                            ...newUser,
-                            entity: value as EntityType,
-                            role:
-                              value === "PRO"
-                                ? "DATA_ENTRY"
-                                : value === "CLIENT"
-                                  ? "CLIENT_DATA_ENTRY"
-                                  : "SUPPLIER_DATA_ENTRY",
-                            entityId: "",
-                          })
-                        }}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="اختر الكيان" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="PRO">شركتنا</SelectItem>
-                          <SelectItem value="CLIENT">عميل</SelectItem>
-                          <SelectItem value="SUPPLIER">مورد</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* عرض قائمة الشركات إذا كان الكيان عميل أو مورد */}
-                    {(newUser.entity === "CLIENT" || newUser.entity === "SUPPLIER") && (
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="entityId" className="text-right col-span-1">
-                          الشركة
-                        </Label>
-                        <Select
-                          value={newUser.entityId}
-                          onValueChange={(value) => setNewUser({ ...newUser, entityId: value })}
-                        >
-                          <SelectTrigger className="col-span-3">
-                            <SelectValue placeholder="اختر الشركة" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {newUser.entity === "CLIENT"
-                              ? clients.map((client) => (
-                                  <SelectItem key={client.id} value={client.id}>
-                                    {client.name}
-                                  </SelectItem>
-                                ))
-                              : suppliers.map((supplier) => (
-                                  <SelectItem key={supplier.id} value={supplier.id}>
-                                    {supplier.name}
-                                  </SelectItem>
-                                ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="role" className="text-right col-span-1">
-                        الدور
-                      </Label>
-                      <Select
-                        value={newUser.role}
-                        onValueChange={(value) => setNewUser({ ...newUser, role: value as RoleType })}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="اختر الدور" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {getAvailableRoles().map((role) => (
-                            <SelectItem key={role.value} value={role.value}>
-                              {role.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="password" className="text-right col-span-1">
-                        كلمة المرور
-                      </Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={newUser.password}
-                        onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                        className="col-span-3"
-                      />
-                    </div>
+      <RoleGuard allowedRoles={["admin", "GENERAL_MANAGER"]}>
+        <div className="container mx-auto p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold">إدارة المستخدمين</h1>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <UserPlus className="ml-2 h-4 w-4" />
+                  إضافة مستخدم جديد
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>إضافة مستخدم جديد</DialogTitle>
+                  <DialogDescription>
+                    أدخل بيانات المستخدم الجديد
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="name" className="text-right">
+                      الاسم
+                    </Label>
+                    <Input
+                      id="name"
+                      value={newUser.name}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, name: e.target.value })
+                      }
+                      className="col-span-3"
+                    />
                   </div>
-                  <DialogFooter>
-                    <Button type="submit" onClick={handleAddUser}>
-                      إضافة
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </RoleGuard>
-          </div>
-
-          {/* Filters and Search */}
-          <Card className="mb-6">
-            <CardContent className="p-4">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="البحث باسم المستخدم أو البريد الإلكتروني"
-                    className="pr-10"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <Select value={filterRole} onValueChange={setFilterRole}>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="جميع الأدوار" />
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="email" className="text-right">
+                      البريد الإلكتروني
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={newUser.email}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, email: e.target.value })
+                      }
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="password" className="text-right">
+                      كلمة المرور
+                    </Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={newUser.password}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, password: e.target.value })
+                      }
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="entity" className="text-right">
+                      نوع الكيان
+                    </Label>
+                    <Select
+                      value={newUser.entity}
+                      onValueChange={(value) =>
+                        setNewUser({ ...newUser, entity: value as EntityType, role: "DATA_ENTRY" as RoleType })
+                      }
+                    >
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">جميع الأدوار</SelectItem>
-                        <SelectItem value="GENERAL_MANAGER">المدير العام</SelectItem>
-                        <SelectItem value="OPERATIONS_MANAGER">مدير العمليات</SelectItem>
-                        <SelectItem value="CLEARANCE_MANAGER">مدير التخليص</SelectItem>
-                        <SelectItem value="DATA_ENTRY">مدخل بيانات</SelectItem>
-                        <SelectItem value="CLIENT_MANAGER">مدير (عميل)</SelectItem>
-                        <SelectItem value="SUPPLIER_MANAGER">مدير (مورد)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <Select value={filterEntity} onValueChange={setFilterEntity}>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="جميع الكيانات" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">جميع الكيانات</SelectItem>
-                        <SelectItem value="PRO">شركتنا</SelectItem>
+                        <SelectItem value="PRO">شركة</SelectItem>
                         <SelectItem value="CLIENT">عميل</SelectItem>
                         <SelectItem value="SUPPLIER">مورد</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button variant="outline">
-                    <Download className="h-4 w-4 ml-2" />
-                    تصدير
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="role" className="text-right">
+                      الدور
+                    </Label>
+                    <Select
+                      value={newUser.role}
+                      onValueChange={(value) =>
+                        setNewUser({ ...newUser, role: value as RoleType })
+                      }
+                    >
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getAvailableRoles().map((role) => (
+                          <SelectItem key={role.value} value={role.value}>
+                            {role.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {(newUser.entity === "CLIENT" || newUser.entity === "SUPPLIER") && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="entityId" className="text-right">
+                        الشركة
+                      </Label>
+                      <Select
+                        value={newUser.entityId}
+                        onValueChange={(value) =>
+                          setNewUser({ ...newUser, entityId: value })
+                        }
+                      >
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder="اختر الشركة" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(newUser.entity === "CLIENT" ? clients : suppliers).map((item) => (
+                            <SelectItem key={item.id || item._id} value={item.id || item._id}>
+                              {item.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    إلغاء
+                  </Button>
+                  <Button type="button" onClick={handleAddUser} disabled={isSubmitting}>
+                    {isSubmitting ? "جاري الإضافة..." : "إضافة"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Search and Filters */}
+          <Card className="mb-6">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input
+                      placeholder="البحث في المستخدمين..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Select value={filterRole} onValueChange={setFilterRole}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="تصفية حسب الدور" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">جميع الأدوار</SelectItem>
+                      <SelectItem value="GENERAL_MANAGER">المدير العام</SelectItem>
+                      <SelectItem value="OPERATIONS_MANAGER">مدير العمليات</SelectItem>
+                      <SelectItem value="CLEARANCE_MANAGER">مدير التخليص</SelectItem>
+                      <SelectItem value="TRANSLATOR">مترجم</SelectItem>
+                      <SelectItem value="CUSTOMS_BROKER">مخلص جمركي</SelectItem>
+                      <SelectItem value="DRIVER">سائق</SelectItem>
+                      <SelectItem value="ACCOUNTANT">محاسب</SelectItem>
+                      <SelectItem value="DATA_ENTRY">مدخل بيانات</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterEntity} onValueChange={setFilterEntity}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="تصفية حسب الكيان" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">جميع الكيانات</SelectItem>
+                      <SelectItem value="PRO">شركة</SelectItem>
+                      <SelectItem value="CLIENT">عميل</SelectItem>
+                      <SelectItem value="SUPPLIER">مورد</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="icon">
+                    <Download className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
@@ -440,75 +545,75 @@ export default function UsersPage() {
           {/* Users Table */}
           <Card>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[50px]"></TableHead>
-                      <TableHead className="text-right">المستخدم</TableHead>
-                      <TableHead className="text-right">البريد الإلكتروني</TableHead>
-                      <TableHead className="text-right">الدور</TableHead>
-                      <TableHead className="text-right">الكيان</TableHead>
-                      <TableHead className="text-left">الإجراءات</TableHead>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>المستخدم</TableHead>
+                    <TableHead>البريد الإلكتروني</TableHead>
+                    <TableHead>الدور</TableHead>
+                    <TableHead>نوع الكيان</TableHead>
+                    <TableHead>الحالة</TableHead>
+                    <TableHead className="text-right">الإجراءات</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id || user._id}>
+                      <TableCell>
+                        <div className="flex items-center space-x-3">
+                          <Avatar>
+                            <AvatarImage src={user.avatar} />
+                            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{user.name}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {getRoleDisplayName(user.role)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {getEntityDisplayName(user.entity)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={user.isActive ? "default" : "destructive"}>
+                          {user.isActive ? "نشط" : "غير نشط"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleUpdateUserStatus(user.id || user._id, !user.isActive)}
+                            >
+                              {user.isActive ? "تعطيل" : "تفعيل"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteUser(user.id || user._id)}
+                              className="text-destructive"
+                            >
+                              حذف
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.length > 0 ? (
-                      filteredUsers.map((u) => (
-                        <TableRow key={u.id} className="hover:bg-slate-50">
-                          <TableCell>
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={`/placeholder.svg?height=32&width=32`} alt={u.name} />
-                              <AvatarFallback>{getInitials(u.name)}</AvatarFallback>
-                            </Avatar>
-                          </TableCell>
-                          <TableCell className="font-medium">{u.name}</TableCell>
-                          <TableCell>{u.email}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{getRoleDisplayName(u.role)}</Badge>
-                          </TableCell>
-                          <TableCell>{getEntityDisplayName(u.entity)}</TableCell>
-                          <TableCell>
-                            <RoleGuard permissions={["EDIT_USER", "DELETE_USER"]}>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <span className="sr-only">فتح القائمة</span>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
-                                  <RoleGuard permissions={["EDIT_USER"]}>
-                                    <DropdownMenuItem>عرض التفاصيل</DropdownMenuItem>
-                                    <DropdownMenuItem>تعديل</DropdownMenuItem>
-                                    <DropdownMenuItem>إعادة تعيين كلمة المرور</DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => handleUpdateUserStatus(u.id, !u.isActive)}>
-                                      {u.isActive ? "تعطيل الحساب" : "تفعيل الحساب"}
-                                    </DropdownMenuItem>
-                                  </RoleGuard>
-                                  <RoleGuard permissions={["DELETE_USER"]}>
-                                    <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteUser(u.id)}>
-                                      حذف
-                                    </DropdownMenuItem>
-                                  </RoleGuard>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </RoleGuard>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8">
-                          لا توجد نتائج مطابقة لمعايير البحث
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </div>

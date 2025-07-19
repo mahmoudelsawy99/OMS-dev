@@ -6,22 +6,22 @@ const BASE_URL = 'http://localhost:5001/api';
 // Test data for different roles
 const testUsers = {
   admin: {
-    email: 'admin@prospeed.com',
-    password: 'admin123',
+    email: 'admin@pro.com',
+    password: 'Admin123',
     name: 'Admin User',
-    role: 'admin'
+    role: 'GENERAL_MANAGER'
   },
   employee: {
-    email: 'employee@prospeed.com',
-    password: 'employee123',
+    email: 'operations@pro.com',
+    password: 'Ops123',
     name: 'Employee User',
-    role: 'employee'
+    role: 'OPERATIONS_MANAGER'
   },
   client: {
-    email: 'client@example.com',
-    password: 'client123',
+    email: 'manager@alpha.com',
+    password: 'Alpha123',
     name: 'Client User',
-    role: 'client'
+    role: 'CLIENT_MANAGER'
   }
 };
 

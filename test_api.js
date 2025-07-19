@@ -1,8 +1,8 @@
 const axios = require('axios');
 
 // Configuration
-const BASE_URL = 'http://31.97.156.49:5001/api';
-let authToken = '';
+const BASE_URL = 'http://localhost:5001/api';
+let authToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4N2EyMjI5MGFmZjc3OWVjMmY5YTJlNCIsImlhdCI6MTc1MjgzNDYyNiwiZXhwIjoxNzUzNDM5NDI2fQ.GYvLqhvTCS6X_RnGsxww2ktnZ0_j9rDMlWOBMl9wkFE';
 let adminToken = '';
 let customerId = '';
 let orderId = '';
@@ -11,12 +11,12 @@ let vehicleId = '';
 // Test data
 const testData = {
   admin: {
-    email: 'admin@prospeed.com',
-    password: 'admin123'
+    email: 'admin@pro.com',
+    password: 'Admin123'
   },
   employee: {
-    email: 'employee@prospeed.com',
-    password: 'employee123'
+    email: 'operations@pro.com',
+    password: 'Ops123'
   },
   customer: {
     name: 'Ahmed Al-Rashid',

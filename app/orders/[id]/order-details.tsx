@@ -59,6 +59,7 @@ import { AddCustomsDialog } from "./add-customs"
 import { AddPurchaseInvoiceDialog } from "./add-purchase-invoice"
 import { AddTransportDialog } from "./add-transport-dialog"
 import ShipmentCharts from "../../../components/shipment-charts"
+import { ordersAPI } from "@/lib/api"
 
 // Add this new component after the existing imports
 // مكون التيكت القابل لإعادة الاستخدام
@@ -210,7 +211,7 @@ const TicketCard = ({
             </Button>
           )}
           {onDelete && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700" onClick={onDelete}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={onDelete}>
               <Trash2 className="h-4 w-4" />
             </Button>
           )}
@@ -355,7 +356,7 @@ const TicketCardImproved = ({
             </Button>
           )}
           {onDelete && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700" onClick={onDelete}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={onDelete}>
               <Trash2 className="h-4 w-4" />
             </Button>
           )}
@@ -794,72 +795,225 @@ const QuickActionsCard = ({
 export default function OrderDetailsPage({ MapComponent }) {
   const params = useParams()
   const router = useRouter()
-  const { id } = params
+  const id = params.id as string
+
+  // State for order data
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("operations")
-  const [adminResponse, setAdminResponse] = useState(null)
-  const [additionalDocsRequired, setAdditionalDocsRequired] = useState([])
-  const [rejectionReason, setRejectionReason] = useState("")
-  const [additionalDocsList, setAdditionalDocsList] = useState([
-    { id: 1, name: "شهادة المنشأ", required: false },
-    { id: 2, name: "شهادة المطابقة", required: false },
-    { id: 3, name: "شهادة صحية", required: false },
-    { id: 4, name: "تفويض", required: false },
-  ])
+  const [error, setError] = useState(null)
+
+  // State for order components
+  const [policies, setPolicies] = useState([])
+  const [sials, setSials] = useState([])
+  const [customsDeclarations, setCustomsDeclarations] = useState([])
+  const [purchaseInvoices, setPurchaseInvoices] = useState([])
+  const [transportLocations, setTransportLocations] = useState([])
+
+  // State for dialogs
   const [isPolicyDialogOpen, setIsPolicyDialogOpen] = useState(false)
   const [isSialDialogOpen, setIsSialDialogOpen] = useState(false)
-  const [policies, setPolicies] = useState([])
-  const [activeComponents, setActiveComponents] = useState([])
-
-  // Add this state variable with the other state variables
   const [isCustomsDialogOpen, setIsCustomsDialogOpen] = useState(false)
-  const [customsDeclarations, setCustomsDeclarations] = useState([])
-  // Add this state and handler for SIAL data
-  const [sials, setSials] = useState([])
   const [isPurchaseInvoiceDialogOpen, setIsPurchaseInvoiceDialogOpen] = useState(false)
-  const [purchaseInvoices, setPurchaseInvoices] = useState([])
   const [isTransportDialogOpen, setIsTransportDialogOpen] = useState(false)
-  const [transportLocations, setTransportLocations] = useState([])
-  const [isRequestMissingItemsDialogOpen, setIsRequestMissingItemsDialogOpen] = useState(false)
-  const [showTimeline, setShowTimeline] = useState(false)
-  // Primero, añadir el estado para el modal de تحديث de estado
-  // Añadir esto junto a los otros estados في الدالة OrderDetailsPage
   const [isUpdateStatusDialogOpen, setIsUpdateStatusDialogOpen] = useState(false)
-  const [statusUpdateNote, setStatusUpdateNote] = useState("")
-  const [selectedStatus, setSelectedStatus] = useState("in_transit")
+  const [isRequestMissingItemsDialogOpen, setIsRequestMissingItemsDialogOpen] = useState(false)
 
-  // Update the handleAddPolicy function to save policies to the order in localStorage
-  const handleAddPolicy = (policyData) => {
+  // State for admin actions
+  const [adminResponse, setAdminResponse] = useState(null)
+  const [rejectionReason, setRejectionReason] = useState("")
+  const [additionalDocsList, setAdditionalDocsList] = useState([
+    { id: "1", name: "شهادة المنشأ", required: false },
+    { id: "2", name: "شهادة المطابقة", required: false },
+    { id: "3", name: "شهادة الصحة", required: false },
+    { id: "4", name: "شهادة التحليل", required: false },
+  ])
+  const [additionalDocsRequired, setAdditionalDocsRequired] = useState([])
+
+  // State for active components and tabs
+  const [activeComponents, setActiveComponents] = useState([
+    { id: "overview", label: "نظرة عامة", isDefault: true },
+    { id: "documents", label: "المستندات", isDefault: false },
+    { id: "timeline", label: "الجدول الزمني", isDefault: false },
+  ])
+  const [activeTab, setActiveTab] = useState("overview")
+
+  // Load order data from API
+  useEffect(() => {
+    const fetchOrder = async () => {
+      setLoading(true)
+      setError(null)
+      
+      try {
+        // Try to load from API first
+        const result = await ordersAPI.getById(id)
+        
+        if (result.success) {
+          const orderData = result.data
+          
+          // Transform API data to match frontend format
+          const transformedOrder = {
+            id: orderData._id || orderData.id,
+            clientName: orderData.clientName || orderData.client?.name || "غير محدد",
+            services: orderData.services || [],
+            status: orderData.status || "قيد المراجعة",
+            creationDate: orderData.createdAt 
+              ? new Date(orderData.createdAt).toLocaleDateString('ar-SA')
+              : "غير محدد",
+            documents: orderData.documents || [],
+            transportType: orderData.transportType || "trailer",
+            transportTemperature: orderData.transportTemperature || "refrigerated",
+            departureCity: orderData.departureCity || "jeddah",
+            departureDistrict: orderData.departureDistrict || "الميناء",
+            arrivalCity: orderData.arrivalCity || "riyadh",
+            arrivalDistrict: orderData.arrivalDistrict || "السلي",
+            factoryContact: orderData.factoryContact || {
+              name: "اسم المصنع",
+              phone: "0555555555",
+              email: "test@test.com",
+              address: "عنوان المصنع",
+            },
+            shippingType: orderData.shippingType || "fob",
+            policies: orderData.policies || [],
+            sials: orderData.sials || [],
+            customsDeclarations: orderData.customsDeclarations || [],
+            purchaseInvoices: orderData.purchaseInvoices || [],
+            transportLocations: orderData.transportLocations || [],
+          }
+          
+          setOrder(transformedOrder)
+          setPolicies(transformedOrder.policies)
+          setSials(transformedOrder.sials)
+          setCustomsDeclarations(transformedOrder.customsDeclarations)
+          setPurchaseInvoices(transformedOrder.purchaseInvoices)
+          setTransportLocations(transformedOrder.transportLocations)
+          
+        } else {
+          console.error('Failed to load order:', result.error)
+          
+          // Fallback to localStorage
+          const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
+          const foundOrder = storedOrders.find((order) => order.id === id)
+
+          if (foundOrder) {
+            setOrder(foundOrder)
+            if (foundOrder.policies) setPolicies(foundOrder.policies)
+            if (foundOrder.sials) setSials(foundOrder.sials)
+            if (foundOrder.customsDeclarations) setCustomsDeclarations(foundOrder.customsDeclarations)
+            if (foundOrder.purchaseInvoices) setPurchaseInvoices(foundOrder.purchaseInvoices)
+            if (foundOrder.transportLocations) setTransportLocations(foundOrder.transportLocations)
+          } else {
+            // Fallback to mock data
+            setOrder({
+              id: id,
+              clientName: "شركة الفا للتجارة",
+              services: ["import", "transport"],
+              status: "قيد المراجعة",
+              creationDate: "١٧/٧/١٤٤٣ هـ",
+              documents: [
+                { id: "1", name: "بوليصة الشحن.pdf", type: "application/pdf", documentType: "bill_of_lading" },
+                { id: "2", name: "فاتورة الشراء.pdf", type: "application/pdf", documentType: "import_invoices" },
+              ],
+              transportType: "trailer",
+              transportTemperature: "refrigerated",
+              departureCity: "jeddah",
+              departureDistrict: "الميناء",
+              arrivalCity: "riyadh",
+              arrivalDistrict: "السلي",
+              factoryContact: {
+                name: "اسم المصنع",
+                phone: "0555555555",
+                email: "test@test.com",
+                address: "عنوان المصنع",
+              },
+              shippingType: "fob",
+            })
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching order:", error)
+        setError("فشل في تحميل بيانات الطلب")
+        
+        // Fallback to localStorage
+        try {
+          const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
+          const foundOrder = storedOrders.find((order) => order.id === id)
+          if (foundOrder) {
+            setOrder(foundOrder)
+            if (foundOrder.policies) setPolicies(foundOrder.policies)
+            if (foundOrder.sials) setSials(foundOrder.sials)
+            if (foundOrder.customsDeclarations) setCustomsDeclarations(foundOrder.customsDeclarations)
+            if (foundOrder.purchaseInvoices) setPurchaseInvoices(foundOrder.purchaseInvoices)
+            if (foundOrder.transportLocations) setTransportLocations(foundOrder.transportLocations)
+          }
+        } catch (localStorageError) {
+          console.error("Error loading from localStorage:", localStorageError)
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchOrder()
+  }, [id])
+
+  // Update order via API
+  const updateOrder = async (updatedOrder) => {
+    try {
+      const result = await ordersAPI.update(id, updatedOrder)
+      
+      if (result.success) {
+        setOrder(updatedOrder)
+        toast({
+          title: "تم التحديث بنجاح",
+          description: "تم تحديث بيانات الطلب بنجاح",
+        })
+        return true
+      } else {
+        toast({
+          title: "خطأ في التحديث",
+          description: result.error || "فشل في تحديث الطلب",
+          variant: "destructive",
+        })
+        return false
+      }
+    } catch (error) {
+      console.error("Error updating order:", error)
+      toast({
+        title: "خطأ في الاتصال",
+        description: "فشل في الاتصال بالخادم",
+        variant: "destructive",
+      })
+      return false
+    }
+  }
+
+  // Update order in localStorage (fallback)
+  const updateOrderInStorage = (updatedOrder) => {
+    try {
+      const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
+      const updatedOrders = storedOrders.map((order) => (order.id === updatedOrder.id ? updatedOrder : order))
+      localStorage.setItem("orders", JSON.stringify(updatedOrders))
+      setOrder(updatedOrder)
+    } catch (error) {
+      console.error("Error updating order in localStorage:", error)
+    }
+  }
+
+  // Handle adding policy
+  const handleAddPolicy = async (policyData) => {
     const newPolicy = { ...policyData, id: Date.now() }
     const updatedPolicies = [...policies, newPolicy]
     setPolicies(updatedPolicies)
 
-    // Save the policy to the order in localStorage
-    try {
-      const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
-      const orderIndex = storedOrders.findIndex((o) => o.id === id)
+    const updatedOrder = {
+      ...order,
+      policies: updatedPolicies,
+    }
 
-      if (orderIndex !== -1) {
-        storedOrders[orderIndex] = {
-          ...storedOrders[orderIndex],
-          policies: updatedPolicies,
-        }
-      } else {
-        // If order doesn't exist in localStorage, create it
-        storedOrders.push({
-          id,
-          policies: updatedPolicies,
-          // Add other order details as needed
-          status: order.status,
-          clientName: order.clientName,
-          creationDate: order.creationDate,
-        })
-      }
-
-      localStorage.setItem("orders", JSON.stringify(storedOrders))
-    } catch (error) {
-      console.error("Error saving policy to localStorage:", error)
+    // Try API first, fallback to localStorage
+    const success = await updateOrder(updatedOrder)
+    if (!success) {
+      updateOrderInStorage(updatedOrder)
     }
 
     // Add policy tab if it doesn't exist
@@ -881,36 +1035,21 @@ export default function OrderDetailsPage({ MapComponent }) {
     })
   }
 
-  // Add this handler function for saving SIAL data
-  const handleAddSial = (sialData) => {
+  // Handle adding SIAL
+  const handleAddSial = async (sialData) => {
     const newSial = { ...sialData, id: Date.now() }
     const updatedSials = [...sials, newSial]
     setSials(updatedSials)
 
-    // Save the SIAL to the order in localStorage
-    try {
-      const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
-      const orderIndex = storedOrders.findIndex((o) => o.id === id)
+    const updatedOrder = {
+      ...order,
+      sials: updatedSials,
+    }
 
-      if (orderIndex !== -1) {
-        storedOrders[orderIndex] = {
-          ...storedOrders[orderIndex],
-          sials: updatedSials,
-        }
-      } else {
-        // If order doesn't exist in localStorage, create it
-        storedOrders.push({
-          id,
-          sials: updatedSials,
-          status: order.status,
-          clientName: order.clientName,
-          creationDate: order.creationDate,
-        })
-      }
-
-      localStorage.setItem("orders", JSON.stringify(storedOrders))
-    } catch (error) {
-      console.error("Error saving SIAL to localStorage:", error)
+    // Try API first, fallback to localStorage
+    const success = await updateOrder(updatedOrder)
+    if (!success) {
+      updateOrderInStorage(updatedOrder)
     }
 
     // Add SIAL tab if it doesn't exist
@@ -932,36 +1071,21 @@ export default function OrderDetailsPage({ MapComponent }) {
     })
   }
 
-  // Add this handler function after the handleAddSial function
-  const handleAddCustomsDeclaration = (customsData) => {
-    const newCustomsDeclaration = { ...customsData, id: Date.now() }
-    const updatedCustomsDeclarations = [...customsDeclarations, newCustomsDeclaration]
-    setCustomsDeclarations(updatedCustomsDeclarations)
+  // Handle adding customs declaration
+  const handleAddCustomsDeclaration = async (customsData) => {
+    const newCustoms = { ...customsData, id: Date.now() }
+    const updatedCustoms = [...customsDeclarations, newCustoms]
+    setCustomsDeclarations(updatedCustoms)
 
-    // Save the customs declaration to the order in localStorage
-    try {
-      const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
-      const orderIndex = storedOrders.findIndex((o) => o.id === id)
+    const updatedOrder = {
+      ...order,
+      customsDeclarations: updatedCustoms,
+    }
 
-      if (orderIndex !== -1) {
-        storedOrders[orderIndex] = {
-          ...storedOrders[orderIndex],
-          customsDeclarations: updatedCustomsDeclarations,
-        }
-      } else {
-        // If order doesn't exist in localStorage, create it
-        storedOrders.push({
-          id,
-          customsDeclarations: updatedCustomsDeclarations,
-          status: order.status,
-          clientName: order.clientName,
-          creationDate: order.creationDate,
-        })
-      }
-
-      localStorage.setItem("orders", JSON.stringify(storedOrders))
-    } catch (error) {
-      console.error("Error saving customs declaration to localStorage:", error)
+    // Try API first, fallback to localStorage
+    const success = await updateOrder(updatedOrder)
+    if (!success) {
+      updateOrderInStorage(updatedOrder)
     }
 
     // Add customs tab if it doesn't exist
@@ -970,7 +1094,7 @@ export default function OrderDetailsPage({ MapComponent }) {
         ...activeComponents,
         {
           id: "customs",
-          label: "البيانات الجمركية",
+          label: "التخليص الجمركي",
           isDefault: false,
         },
       ])
@@ -978,90 +1102,62 @@ export default function OrderDetailsPage({ MapComponent }) {
 
     setActiveTab("customs")
     toast({
-      title: "تمت إضافة البيان الجمركي",
-      description: "تم إضافة البيان الجمركي بنجاح",
+      title: "تمت إضافة التخليص الجمركي",
+      description: "تم إضافة التخليص الجمركي بنجاح",
     })
   }
 
-  // Add this handler function for saving purchase invoice data
-  const handleAddPurchaseInvoice = (invoiceData) => {
+  // Handle adding purchase invoice
+  const handleAddPurchaseInvoice = async (invoiceData) => {
     const newInvoice = { ...invoiceData, id: Date.now() }
     const updatedInvoices = [...purchaseInvoices, newInvoice]
     setPurchaseInvoices(updatedInvoices)
 
-    // Save the invoice to the order in localStorage
-    try {
-      const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
-      const orderIndex = storedOrders.findIndex((o) => o.id === id)
-
-      if (orderIndex !== -1) {
-        storedOrders[orderIndex] = {
-          ...storedOrders[orderIndex],
-          purchaseInvoices: updatedInvoices,
-        }
-      } else {
-        storedOrders.push({
-          id,
-          purchaseInvoices: updatedInvoices,
-          status: order.status,
-          clientName: order.clientName,
-          creationDate: order.creationDate,
-        })
-      }
-
-      localStorage.setItem("orders", JSON.stringify(storedOrders))
-    } catch (error) {
-      console.error("Error saving purchase invoice to localStorage:", error)
+    const updatedOrder = {
+      ...order,
+      purchaseInvoices: updatedInvoices,
     }
 
-    // Add purchase invoices tab if it doesn't exist
-    if (!activeComponents.some((comp) => comp.id === "purchase-invoices")) {
+    // Try API first, fallback to localStorage
+    const success = await updateOrder(updatedOrder)
+    if (!success) {
+      updateOrderInStorage(updatedOrder)
+    }
+
+    // Add invoice tab if it doesn't exist
+    if (!activeComponents.some((comp) => comp.id === "invoice")) {
       setActiveComponents([
         ...activeComponents,
         {
-          id: "purchase-invoices",
-          label: "فواتير الشراء",
+          id: "invoice",
+          label: "فاتورة الشراء",
           isDefault: false,
         },
       ])
     }
 
-    setActiveTab("purchase-invoices")
+    setActiveTab("invoice")
     toast({
       title: "تمت إضافة فاتورة الشراء",
       description: "تم إضافة فاتورة الشراء بنجاح",
     })
   }
 
-  // Add this handler function for saving transport location data
-  const handleAddTransportLocation = (locationData) => {
+  // Handle adding transport location
+  const handleAddTransportLocation = async (locationData) => {
     const newLocation = { ...locationData, id: Date.now() }
     const updatedLocations = [...transportLocations, newLocation]
     setTransportLocations(updatedLocations)
 
-    // Save the transport location to the order in localStorage
-    try {
-      const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
-      const orderIndex = storedOrders.findIndex((o) => o.id === id)
+    const updatedOrder = {
+      ...order,
+      transportLocations: updatedLocations,
+    }
 
-      if (orderIndex !== -1) {
-        storedOrders[orderIndex] = {
-          ...storedOrders[orderIndex],
-          transportLocations: updatedLocations,
-        }
-      } else {
-        storedOrders.push({
-          id,
-          transportLocations: updatedLocations,
-          status: order.status,
-          clientName: order.clientName,
-          creationDate: order.creationDate,
-        })
-      }
-
-      localStorage.setItem("orders", JSON.stringify(storedOrders))
-    } catch (error) {
-      console.error("Error saving transport location to localStorage:", error)
+    // Try API first, fallback to localStorage
+    const success = await updateOrder(updatedOrder)
+    if (!success) {
+      updateOrderInStorage(updatedOrder)
     }
 
     // Add transport tab if it doesn't exist
@@ -1078,84 +1174,21 @@ export default function OrderDetailsPage({ MapComponent }) {
 
     setActiveTab("transport")
     toast({
-      title: "تمت إضافة معلومات النقل",
-      description: "تم إضافة معلومات النقل بنجاح",
+      title: "تمت إضافة موقع النقل",
+      description: "تم إضافة موقع النقل بنجاح",
     })
   }
 
-  // Fetch order data
-  // Also update the useEffect to load existing policies
-  useEffect(() => {
-    // In a real app, you would fetch from an API
-    // For now, we'll simulate by retrieving from localStorage
-    const fetchOrder = () => {
-      try {
-        const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
-        const foundOrder = storedOrders.find((order) => order.id === id)
-
-        if (foundOrder) {
-          setOrder(foundOrder)
-          // Load policies if they exist
-          if (foundOrder.policies) {
-            setPolicies(foundOrder.policies)
-          }
-          // Load SIALs if they exist
-          if (foundOrder.sials) {
-            setSials(foundOrder.sials)
-          }
-          // Update the useEffect function to load existing customs declarations
-          // Add this inside the fetchOrder function, after loading SIALs
-          if (foundOrder.customsDeclarations) {
-            setCustomsDeclarations(foundOrder.customsDeclarations)
-          }
-          if (foundOrder.purchaseInvoices) {
-            setPurchaseInvoices(foundOrder.purchaseInvoices)
-          }
-          if (foundOrder.transportLocations) {
-            setTransportLocations(foundOrder.transportLocations)
-          }
-        } else {
-          // Fallback to mock data if not found
-          setOrder({
-            id: id,
-            clientName: "شركة الفا للتجارة",
-            services: ["import", "transport"],
-            status: "قيد المراجعة",
-            creationDate: "١٧/٧/١٤٤٣ هـ",
-            documents: [
-              { id: "1", name: "بوليصة الشحن.pdf", type: "application/pdf", documentType: "bill_of_lading" },
-              { id: "2", name: "فاتورة الشراء.pdf", type: "application/pdf", documentType: "import_invoices" },
-            ],
-            transportType: "trailer",
-            transportTemperature: "refrigerated",
-            departureCity: "jeddah",
-            departureDistrict: "الميناء",
-            arrivalCity: "riyadh",
-            arrivalDistrict: "السلي",
-            factoryContact: {
-              name: "اسم المصنع",
-              phone: "0555555555",
-              email: "test@test.com",
-              address: "عنوان المصنع",
-            },
-            shippingType: "fob",
-          })
-        }
-        setLoading(false)
-      } catch (error) {
-        console.error("Error fetching order:", error)
-        setLoading(false)
-      }
-    }
-
-    fetchOrder()
-  }, [id])
-
   // Handle order approval
-  const handleApproveOrder = () => {
-    // Update order status
+  const handleApproveOrder = async () => {
     const updatedOrder = { ...order, status: "موافق عليه" }
-    updateOrderInStorage(updatedOrder)
+    
+    // Try API first, fallback to localStorage
+    const success = await updateOrder(updatedOrder)
+    if (!success) {
+      updateOrderInStorage(updatedOrder)
+    }
+    
     setAdminResponse("approved")
     toast({
       title: "تمت الموافقة على الطلب",
@@ -1164,7 +1197,7 @@ export default function OrderDetailsPage({ MapComponent }) {
   }
 
   // Handle order rejection
-  const handleRejectOrder = () => {
+  const handleRejectOrder = async () => {
     if (!rejectionReason) {
       toast({
         title: "خطأ",
@@ -1174,13 +1207,18 @@ export default function OrderDetailsPage({ MapComponent }) {
       return
     }
 
-    // Update order status
     const updatedOrder = {
       ...order,
       status: "مرفوض",
       rejectionReason,
     }
-    updateOrderInStorage(updatedOrder)
+    
+    // Try API first, fallback to localStorage
+    const success = await updateOrder(updatedOrder)
+    if (!success) {
+      updateOrderInStorage(updatedOrder)
+    }
+    
     setAdminResponse("rejected")
     toast({
       title: "تم رفض الطلب",
@@ -1189,7 +1227,7 @@ export default function OrderDetailsPage({ MapComponent }) {
   }
 
   // Handle requesting additional documents
-  const handleRequestDocuments = () => {
+  const handleRequestDocuments = async () => {
     const selectedDocs = additionalDocsList.filter((doc) => doc.required)
 
     if (selectedDocs.length === 0) {
@@ -1201,31 +1239,24 @@ export default function OrderDetailsPage({ MapComponent }) {
       return
     }
 
-    // Update order status
     const updatedOrder = {
       ...order,
       status: "بانتظار مستندات إضافية",
       additionalDocsRequired: selectedDocs,
     }
-    updateOrderInStorage(updatedOrder)
+    
+    // Try API first, fallback to localStorage
+    const success = await updateOrder(updatedOrder)
+    if (!success) {
+      updateOrderInStorage(updatedOrder)
+    }
+    
     setAdditionalDocsRequired(selectedDocs)
     setAdminResponse("additional_docs")
     toast({
       title: "تم طلب مستندات إضافية",
       description: `تم تحديث حالة الطلب ${id} إلى بانتظار مستندات إضافية`,
     })
-  }
-
-  // Update order in localStorage
-  const updateOrderInStorage = (updatedOrder) => {
-    try {
-      const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]")
-      const updatedOrders = storedOrders.map((order) => (order.id === updatedOrder.id ? updatedOrder : order))
-      localStorage.setItem("orders", JSON.stringify(updatedOrders))
-      setOrder(updatedOrder)
-    } catch (error) {
-      console.error("Error updating order:", error)
-    }
   }
 
   // Toggle additional document requirement
@@ -1246,10 +1277,16 @@ export default function OrderDetailsPage({ MapComponent }) {
     return cities[cityCode] || cityCode
   }
 
-  // إضافة دالة إعادة فتح الطلب
-  const handleReopenOrder = () => {
+  // Handle reopening order
+  const handleReopenOrder = async () => {
     const updatedOrder = { ...order, status: "قيد المراجعة" }
-    updateOrderInStorage(updatedOrder)
+    
+    // Try API first, fallback to localStorage
+    const success = await updateOrder(updatedOrder)
+    if (!success) {
+      updateOrderInStorage(updatedOrder)
+    }
+    
     toast({
       title: "تم إعادة فتح الطلب",
       description: `تم تحديث حالة الطلب ${id} إلى قيد المراجعة`,
@@ -1262,6 +1299,18 @@ export default function OrderDetailsPage({ MapComponent }) {
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="text-lg">جاري تحميل بيانات الطلب...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto p-8 flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
+          <p className="text-lg">{error}</p>
+          <Button onClick={() => router.back()}>العودة للخلف</Button>
         </div>
       </div>
     )

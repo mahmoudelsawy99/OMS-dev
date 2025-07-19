@@ -6,7 +6,7 @@ const router = express.Router()
 // @route   GET /api/reports
 // @desc    Get reports
 // @access  Private (Admin/Employee only)
-router.get("/", [auth, authorize("admin", "employee")], async (req, res) => {
+router.get("/", [auth, authorize("GENERAL_MANAGER", "admin", "employee")], async (req, res) => {
   try {
     // Placeholder for reports logic
     res.json({ success: true, data: [] })
