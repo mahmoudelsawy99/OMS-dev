@@ -13,63 +13,6 @@ const generateToken = (id) => {
   })
 }
 
-// @route   POST /api/auth/register
-// @desc    Register user
-// @access  Public
-// router.post(
-  "/register",
-  [
-    body("name").trim().isLength({ min: 2 }).withMessage("Name must be at least 2 characters"),
-    body("email").isEmail().withMessage("Please enter a valid email"),
-    body("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
-    body("phone").isMobilePhone().withMessage("Please enter a valid phone number"),
-  ],
-  async (req, res) => {
-    try {
-      const errors = validationResult(req)
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() })
-      }
-
-      const { name, email, password, phone, role, address } = req.body
-
-      // Check if user exists
-      let user = await User.findOne({ email })
-      if (user) {
-        return res.status(400).json({ message: "User already exists" })
-      }
-
-      // Create user
-      user = new User({
-        name,
-        email,
-        password,
-        phone,
-        role: role || "client",
-        address,
-      })
-
-      await user.save()
-
-      // Generate token
-      const token = generateToken(user._id)
-
-      res.status(201).json({
-        success: true,
-        token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
-      })
-    } catch (error) {
-      console.error(error)
-      res.status(500).json({ message: "Server error" })
-    }
-  },
-// )
 router.post(
   "/register",
   [
@@ -93,7 +36,23 @@ router.post(
 
     body("role")
       .optional()
-      .isIn(["client", "admin", "driver"])
+      .isIn([
+        "GENERAL_MANAGER",
+        "CLEARANCE_MANAGER", 
+        "OPERATIONS_MANAGER",
+        "TRANSLATOR",
+        "CUSTOMS_BROKER",
+        "DRIVER",
+        "ACCOUNTANT",
+        "DATA_ENTRY",
+        "CLIENT_MANAGER",
+        "CLIENT_SUPERVISOR",
+        "CLIENT_DATA_ENTRY",
+        "SUPPLIER_MANAGER",
+        "SUPPLIER_SUPERVISOR",
+        "SUPPLIER_DATA_ENTRY",
+        "ADMIN"
+      ])
       .withMessage("Invalid role"),
 
     body("address.street")
@@ -132,7 +91,7 @@ router.post(
         email,
         password,
         phone,
-        role: role?.toLowerCase() || "client",
+        role: role || "CLIENT_MANAGER",
         address,
       });
 
@@ -160,6 +119,7 @@ router.post(
     }
   }
 );
+
 // @route   POST /api/auth/login
 // @desc    Login user
 // @access  Public
@@ -220,7 +180,15 @@ router.post(
 router.get("/me", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
-    res.json({ success: true, user })
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    })
   } catch (error) {
     console.error(error)
     res.status(500).json({ message: "Server error" })

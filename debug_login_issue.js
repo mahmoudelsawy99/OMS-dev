@@ -1,98 +1,93 @@
 const axios = require('axios');
 
-const BASE_URL = 'http://31.97.156.49:5001/api';
+const API_BASE_URL = 'http://31.97.156.49:5001/api';
 
 async function debugLoginIssue() {
   console.log('🔍 Debugging Login Issue...\n');
+
+  // Test 1: Health Check
+  console.log('1. Testing Health Check...');
+  try {
+    const healthResponse = await axios.get(`${API_BASE_URL}/health`);
+    console.log('✅ Health Check:', healthResponse.data);
+  } catch (error) {
+    console.log('❌ Health Check failed:', error.message);
+    return;
+  }
+
+  // Test 2: Test login with different data formats
+  console.log('\n2. Testing Login with different formats...');
   
-  // Test different login scenarios
   const testCases = [
     {
-      name: 'Admin with correct credentials',
+      name: 'Standard login',
       data: { email: 'admin@pro.com', password: 'Admin123' }
     },
     {
-      name: 'Admin with wrong password',
-      data: { email: 'admin@pro.com', password: 'wrongpassword' }
+      name: 'Admin with different password',
+      data: { email: 'admin@pro.com', password: 'admin123' }
     },
     {
-      name: 'Non-existent user',
-      data: { email: 'nonexistent@example.com', password: 'test123' }
+      name: 'Admin with uppercase password',
+      data: { email: 'admin@pro.com', password: 'ADMIN123' }
     },
     {
-      name: 'Empty credentials',
-      data: { email: '', password: '' }
-    },
-    {
-      name: 'Missing password',
-      data: { email: 'admin@pro.com' }
+      name: 'Different admin email',
+      data: { email: 'admin@example.com', password: 'Admin123' }
     }
   ];
-  
+
   for (const testCase of testCases) {
-    console.log(`\n--- Testing: ${testCase.name} ---`);
-    
+    console.log(`\n   Testing: ${testCase.name}`);
     try {
-      const response = await axios.post(`${BASE_URL}/auth/login`, testCase.data);
-      
-      if (response.data.token) {
-        console.log('✅ Login successful!');
-        console.log('User role:', response.data.user.role);
-        console.log('User ID:', response.data.user.id);
-      } else {
-        console.log('⚠️ Login response without token');
-        console.log('Response:', response.data);
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, testCase.data);
+      console.log(`   ✅ Success! Token: ${response.data.token ? 'Received' : 'None'}`);
+      if (response.data.user) {
+        console.log(`   👤 User: ${response.data.user.name} (${response.data.user.role})`);
       }
-      
     } catch (error) {
-      console.log('❌ Login failed');
-      console.log('Status:', error.response?.status);
-      console.log('Error type:', error.response?.status === 500 ? 'Server Error' : 'Client Error');
-      console.log('Error message:', error.response?.data?.message || error.message);
-      
-      // If it's a 500 error, it might be a database issue
-      if (error.response?.status === 500) {
-        console.log('🔴 This is a server-side error (500)');
-        console.log('Possible causes:');
-        console.log('  - Database connection issue');
-        console.log('  - User data corruption after role update');
-        console.log('  - Server configuration problem');
+      console.log(`   ❌ Failed: ${error.response?.status} - ${error.response?.data?.message || error.message}`);
+      if (error.response?.data) {
+        console.log(`   📄 Response:`, JSON.stringify(error.response.data, null, 2));
       }
     }
   }
-  
-  // Test registration to see if that works
-  console.log('\n--- Testing User Registration ---');
+
+  // Test 3: Check what users exist
+  console.log('\n3. Testing if we can get users list...');
   try {
-    const registerData = {
-      name: 'Test Debug User',
-      email: `debug${Date.now()}@example.com`,
-      password: 'Test1234',
-      phone: '+966501234567',
-      role: 'employee'
-    };
-    
-    const registerResponse = await axios.post(`${BASE_URL}/auth/register`, registerData);
-    console.log('✅ Registration successful!');
-    console.log('User role:', registerResponse.data.user.role);
-    
-    // Try to login with the newly created user
-    console.log('\n--- Testing Login with New User ---');
-    const loginResponse = await axios.post(`${BASE_URL}/auth/login`, {
-      email: registerData.email,
-      password: registerData.password
+    // First try to login with any working credentials
+    const loginResponse = await axios.post(`${API_BASE_URL}/auth/login`, {
+      email: 'admin@pro.com',
+      password: 'Admin123'
     });
     
     if (loginResponse.data.token) {
-      console.log('✅ Login with new user successful!');
-      console.log('User role:', loginResponse.data.user.role);
+      console.log('✅ Got token, testing users endpoint...');
+      const usersResponse = await axios.get(`${API_BASE_URL}/users`, {
+        headers: { Authorization: `Bearer ${loginResponse.data.token}` }
+      });
+      console.log(`✅ Users endpoint working. Found ${usersResponse.data.data?.length || 0} users`);
+      
+      // Show first few users
+      if (usersResponse.data.data && usersResponse.data.data.length > 0) {
+        console.log('\n📋 Available users:');
+        usersResponse.data.data.slice(0, 5).forEach(user => {
+          console.log(`   - ${user.email} (${user.role})`);
+        });
+      }
     }
-    
   } catch (error) {
-    console.log('❌ Registration failed');
-    console.log('Status:', error.response?.status);
-    console.log('Error message:', error.response?.data?.message || error.message);
+    console.log('❌ Cannot access users:', error.response?.data?.message || error.message);
   }
+
+  console.log('\n🔍 Debug Summary:');
+  console.log('- The 400 error suggests the server is receiving the request but rejecting the data');
+  console.log('- This could be due to:');
+  console.log('  1. Wrong credentials format');
+  console.log('  2. User does not exist');
+  console.log('  3. Password is incorrect');
+  console.log('  4. Server validation issues');
 }
 
 debugLoginIssue(); 

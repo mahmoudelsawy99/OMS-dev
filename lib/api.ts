@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://31.97.156.49:5001/api';
+const API_BASE_URL = 'http://localhost:5002/api';
 
 // Helper function to get auth token
 const getAuthToken = (): string | null => {
